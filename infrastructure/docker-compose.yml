@@ -1,0 +1,38 @@
+# MAWorld базовая инфраструктура (MVP control spine + Knowledge Foundry)
+# Вердикты: Postgres+pgvector (D6/D7), MinIO (D7), NATS JetStream (D1), Langfuse self-hosted (D6)
+services:
+  postgres:
+    # OCI index digest verified against Docker Hub registry on 2026-07-16.
+    image: pgvector/pgvector:pg16@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+    ports: ["127.0.0.1:5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../apps/knowledge-foundry/schema/001_intake_core_v1_1.sql:/docker-entrypoint-initdb.d/001_kf_intake.sql:ro
+      - ../apps/knowledge-foundry/schema/002_rls_roles.sql:/docker-entrypoint-initdb.d/002_kf_rls_roles.sql:ro
+      - ../apps/knowledge-foundry/schema/003_atomic_intake.sql:/docker-entrypoint-initdb.d/003_kf_atomic_intake.sql:ro
+      - ./sql/002_improvement_loop.sql:/docker-entrypoint-initdb.d/010_improvement_loop.sql:ro
+  minio:
+    # Immutable OCI index; keep the human-readable release tag for provenance.
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z@sha256:9535594ad4122b7a78c6632788a989b96d9199b483d3bd71a5ceae73a922cdfa
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
+    volumes: [minio_data:/data]
+  nats:
+    # Immutable multi-platform OCI index.
+    image: nats:2.10.22-alpine@sha256:73b0ba5fec5518c5f698597c58d2a3350a2b5ccae43e84c308f8d2da1242deca
+    command: ["-js", "-sd", "/data"]
+    ports: ["127.0.0.1:4222:4222", "127.0.0.1:8222:8222"]
+    volumes: [nats_data:/data]
+  # Langfuse self-hosted: развернуть по официальному compose (ClickHouse+Redis+S3)
+  # https://langfuse.com/self-hosting — подключить сюда на шаге TraceBridge
+volumes:
+  pgdata: {}
+  minio_data: {}
+  nats_data: {}

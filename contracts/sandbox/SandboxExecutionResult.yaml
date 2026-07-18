@@ -1,0 +1,15 @@
+SandboxExecutionResult:
+  execution_id: string
+  status: enum[QUEUED, RUNNING, SUCCEEDED, FAILED, TIMED_OUT, POLICY_BLOCKED]
+  started_at: timestamp|null
+  finished_at: timestamp|null
+  exit_code: int32|null
+  output_hashes: [string]
+  sbom_ref: string|null
+  vuln_scan_ref: string|null
+  provenance_ref: string|null
+  output_validation: enum[PASSED, FAILED, NOT_RUN]
+  tests_status: enum[PASSED, FAILED, NOT_RUN]
+  security_checks_status: enum[PASSED, FAILED, NOT_RUN]
+  promotion_eligibility: enum[ELIGIBLE, INELIGIBLE, HOLD]
+# "Выполнилось" != "доверено": промоция только после validation+tests+security+provenance+approval.

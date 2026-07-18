@@ -1,0 +1,16 @@
+[package]
+name = "kf-store-pg"
+version = "0.1.0"
+edition = "2021"
+description = "Knowledge Foundry MetaStore — PostgreSQL/sqlx impl behind the shared trait (v1.3 KF-RUST-006)"
+
+[dependencies]
+sqlx-core = { version = "=0.8.6", features = ["_rt-tokio"] }
+sqlx-postgres = { version = "=0.8.6", features = ["uuid"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+uuid = { version = "1", features = ["v7"] }
+anyhow = "1"
+async-trait = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

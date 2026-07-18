@@ -1,0 +1,18 @@
+TraceContext:
+  schema_version: "delta-2026-07"
+  trace_id: string
+  span_id: string
+  parent_span_id: string
+  correlation_id: string
+  causation_id: string
+  workflow_id: string
+  branch_id: string
+  task_id: string
+  action_id: string
+  external_effect_id: string
+  handoff_id: string
+  eval_run_id: string
+  source_plane: string
+  source_component: string
+  timestamp: string
+# Внутренняя схема стабильна; маппинг в OTel gen_ai.* — в TraceBridge (semconv ещё движется).

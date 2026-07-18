@@ -1,0 +1,35 @@
+# ContinuityOS preflight вход. База (D1) + MCP-era delta (D6).
+ActionSpec:
+  schema_version: string
+  action_id: string
+  agent_id: string
+  target: string
+  operation: string
+  data_class: enum[PUBLIC, INTERNAL, CONFIDENTIAL, FINANCIAL_SENSITIVE, SECRET, CREDENTIAL]
+  risk_class: enum[LOW, MEDIUM, HIGH, CRITICAL]
+  blast_radius: string
+  idempotency_key: string
+  protocol: enum[native_tool, mcp, provider_hosted_tool, http_api, sandbox_exec]
+  protocol_version: string
+  mcp:                                  # D6 delta — MCP 2026-era
+    server_id: string
+    resource_server: string
+    oauth_audience: string
+    oauth_scope_set: [string]
+    consent_scope_delta: [string]       # инкремент скоупа без новой policy decision -> HOLD
+    header_allowlist: [string]          # неизвестные MCP-* заголовки -> HOLD
+    header_hash: string
+    async_task:
+      is_async: boolean
+      task_handle: string
+      parent_action_id: string
+      terminality_required: boolean     # async завершение обязано сверяться с исходной авторизацией
+  authority_binding:
+    delegation_grant_id: string
+    capability_token_id: string
+    policy_decision_id: string
+  provider_constraints:
+    zero_data_retention_required: boolean
+    provider_route_mode: string
+    fallback_allowed: boolean
+# Decision: ALLOW | WARN | HOLD | DENY. Неизвестная версия протокола -> default HOLD.

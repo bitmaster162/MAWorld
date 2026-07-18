@@ -1,0 +1,37 @@
+name: maworld-adversarial-ci
+on: [push, pull_request]
+permissions:
+  contents: read
+concurrency:
+  group: maworld-adversarial-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  adversarial:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with: { python-version: "3.10" }
+      - name: Verify committed supply-chain pins
+        run: python3 tools/check_supply_chain.py
+      - name: Audit every universal lock branch against OSV
+        run: python3 tools/audit_python_locks_osv.py
+      - name: Install hash-locked verification backends
+        run: >-
+          python3 -m pip install --disable-pip-version-check
+          --require-hashes --only-binary=:all:
+          -r requirements/ci-verification.lock.txt
+      - name: Check installed dependency consistency
+        run: python3 -m pip check
+      - name: Single source of truth check
+        run: python3 libs/maworld_core/check_single_source.py
+      - name: Adversarial suite (must be green)
+        run: python3 tests/run_all.py
+      - name: Active app/service entrypoints
+        run: python3 tests/run_active_entrypoints.py
+      - name: Tier-2 portable acceptance
+        run: python3 services/sandbox-broker/tier2_acceptance.py
+      # gate: live effects stay OFF and no freeze until this job is green

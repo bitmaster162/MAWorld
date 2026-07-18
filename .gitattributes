@@ -1,0 +1,12 @@
+* text=auto eol=lf
+
+# Markdown uses two trailing spaces for intentional hard line breaks.
+*.md text eol=lf whitespace=-blank-at-eol,-blank-at-eof
+
+# Preserve genuinely binary artifacts if they are added intentionally later.
+*.zip binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary

@@ -1,0 +1,22 @@
+EvalRecord:
+  schema_version: "delta-2026-07"
+  eval_id: string
+  dataset_id: string
+  fixture_id: string
+  role: string
+  prompt_version: string
+  model_binding: string
+  model_version: string
+  provider: string
+  judge_mode: string
+  adjudication_policy_version: string
+  input_hash: string
+  output_hash: string
+  result:
+    verdict: string
+    score: number
+    failure_class: string
+    regression: boolean
+  evidence_refs: [string]
+  trace_id: string
+  created_at: string

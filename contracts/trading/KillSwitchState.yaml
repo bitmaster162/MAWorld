@@ -1,0 +1,8 @@
+KillSwitchState:
+  state_version: uint64
+  enabled: bool
+  reason_code: string     # STALE_DATA | RECON_MISMATCH | HEARTBEAT_LOSS | HUMAN | DRAWDOWN
+  source: string
+  effective_at_mono_ns: uint64
+  effective_at_wall: timestamp
+# Читается admission-path атомарно и напрямую, НЕ через очередь (ADR-D5). Fail closed.

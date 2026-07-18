@@ -1,0 +1,8 @@
+[workspace]
+resolver = "2"
+members = [
+    "apps/knowledge-foundry/kf-intake",
+    "apps/knowledge-foundry/kf-parser",
+    "apps/knowledge-foundry/kf-store-pg",
+    "apps/trading-cell/risk-service",
+]

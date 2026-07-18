@@ -1,0 +1,14 @@
+CompensationPlan:
+  compensation_plan_id: string
+  effect_id: string
+  workflow_id: string
+  branch_id: string
+  eligibility: enum[ELIGIBLE, NOT_ELIGIBLE, NEEDS_REVIEW]
+  steps:
+    - step_id: string
+      action: string
+      target_system: string
+      idempotency_key: string
+      approval_required: bool
+  created_by: string
+  created_at: timestamp

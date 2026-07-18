@@ -1,0 +1,24 @@
+SandboxExecutionSpec:
+  execution_id: string
+  artifact_id: string
+  source_hash: string
+  sandbox_tier: enum[TIER0, TIER1_WASM, TIER2_GVISOR_OCI, TIER3_MICROVM, TIER4_DEDICATED_GPU]
+  image_digest: string|null
+  cpu_limit: string
+  memory_limit: string
+  disk_limit: string
+  process_limit: int32
+  timeout: duration
+  filesystem_mounts: [string]
+  read_only_inputs: [string]
+  writable_output_path: string
+  network_policy: enum[DENY_ALL, ALLOWLIST, OFFLINE]
+  egress_allowlist: [string]
+  dns_policy: enum[DISABLED, INTERNAL_ONLY, ALLOWLIST]
+  secret_references: [string]
+  environment_variables: {string: string}
+  expected_outputs: [string]
+  output_size_limit: string
+  cleanup_policy: enum[DESTROY, CRYPTO_ERASE, SNAPSHOT_AND_DESTROY]
+  evidence_requirements: [string]
+# Инварианты: deny egress default; нет docker.sock; нет прод-кредов; metadata blocked (ADR-D4).

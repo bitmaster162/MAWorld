@@ -1,0 +1,21 @@
+WorkflowCheckpoint:
+  checkpoint_id: string
+  workflow_id: string
+  branch_id: string
+  event_history_cursor: int64
+  state_hash: string
+  input_artifact_hashes: [string]
+  policy_version: string
+  schema_version: string
+  code_version: string
+  model_binding: string
+  model_version: string
+  prompt_version: string
+  tool_versions: {string: string}
+  configuration_hash: string
+  creator: string
+  reason: string
+  created_at: timestamp
+  metadata:
+    deterministic_replay_expected: bool
+    replay_identity_class: enum[IDENTICAL, NON_IDENTICAL, UNKNOWN]

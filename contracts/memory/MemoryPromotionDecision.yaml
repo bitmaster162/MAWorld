@@ -1,0 +1,10 @@
+MemoryPromotionDecision:
+  decision_id: string
+  proposal_id: string
+  memory_id: string
+  result: enum[APPROVED, REJECTED, HOLD, QUARANTINED]
+  reviewer: string
+  reasoning_code: string
+  conflicts: [string]
+  approved_scope: enum[PINNED_CORE, WORKING, ARCHIVAL]
+  effective_at: timestamp|null

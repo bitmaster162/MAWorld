@@ -1,0 +1,6 @@
+__pycache__/
+_state/
+*.pyc
+*.db
+*.db-*
+*.sock

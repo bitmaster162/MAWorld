@@ -1,0 +1,11 @@
+# D5: выход LLM-Synthesizer'а. НЕпроверенная гипотеза. SBE на транспорте NATS.
+SignalProposal:
+  schema_version: "1.0"
+  signal_id: uuid_v7            # idempotency + аудит-трейс SQLite
+  timestamp_utc_ns: uint64
+  instrument: string            # 'BTC-USD-PERP'
+  direction: enum[LONG, SHORT, FLAT]
+  conviction_score: uint8       # 0-100; RiskService ИГНОРИРУЕТ при проверке лимитов
+  proposed_risk_pct: uint16     # basis points, max 100 (=1%)
+  valid_until_ns: uint64        # TTL
+  llm_provenance: string        # hash дебат-лога в SQLite

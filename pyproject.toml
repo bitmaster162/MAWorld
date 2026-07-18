@@ -1,0 +1,21 @@
+[project]
+name = "maworld"
+version = "0.1.0"
+description = "MultiAgentWorldOS — deterministic control spine + governed agent layers"
+requires-python = ">=3.10"
+# Pinned (no floating ranges) for reproducibility. Regenerate a lockfile in CI (pip-tools/uv).
+dependencies = [
+  "psycopg[binary]==3.2.3",
+  "dbos==2.27.0",
+  "stripe==11.4.1",
+  "aiosqlite==0.20.0",
+]
+[project.optional-dependencies]
+trading = ["nautilus_trader==1.202.0", "toml==0.10.2", "msgspec==0.18.6", "fsspec==2023.6.0"]
+verification = ["cedarpy==4.8.7", "z3-solver==4.16.0.0"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+[tool.maworld]
+single_source = "libs/maworld_core"
+live_effects = "OFF"          # invariant: no live trading/payments until full suite green in CI
+build_freeze = "BLOCKED"

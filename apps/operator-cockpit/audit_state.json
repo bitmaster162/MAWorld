@@ -1,0 +1,22 @@
+{
+  "source_status": "UNVERIFIED_OFFLINE_FIXTURE",
+  "live_effects": "OFF",
+  "build_freeze": "BLOCKED",
+  "closed": 0,
+  "act": 8,
+  "total": 8,
+  "verdicts": [
+    {"id": "M1", "state": "UNVERIFIED", "devil": "external gate runtime", "evidence": "Local contract tests only; signed runtime acceptance pending"},
+    {"id": "M2", "state": "UNVERIFIED", "devil": "venue lifecycle", "evidence": "Live/testnet runtime acceptance is not part of the current audit"},
+    {"id": "M3", "state": "UNVERIFIED", "devil": "Stripe settlement lineage", "evidence": "Local verifier tests only; external acceptance pending"},
+    {"id": "M4", "state": "UNVERIFIED", "devil": "canon production custody", "evidence": "Local signed-boundary tests only"},
+    {"id": "M5", "state": "UNVERIFIED", "devil": "trading engine integration", "evidence": "Risk result is proposal-only and grants no execution authority"},
+    {"id": "M6", "state": "UNVERIFIED", "devil": "end-to-end external runtime", "evidence": "Seam checks are AST/contract checks, not runtime evidence"},
+    {"id": "M7", "state": "ACT", "devil": "Tier-2 runtime isolation", "evidence": "19 PASS / 0 FAIL / 3 SKIP on Windows; Linux runsc pending"},
+    {"id": "M8", "state": "UNVERIFIED", "devil": "PostgreSQL crash recovery", "evidence": "Production-like runtime acceptance pending"}
+  ],
+  "evidence": [
+    {"name": "Local adversarial baseline", "ok": true, "detail": "50/50 suites, 900 assertions; no live authority"},
+    {"name": "Production acceptance", "ok": false, "detail": "HOLD until all P0/P1 blockers have signed evidence"}
+  ]
+}

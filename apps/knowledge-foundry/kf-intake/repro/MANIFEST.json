@@ -1,0 +1,30 @@
+{
+  "status": "HISTORICAL_SUPERSEDED",
+  "current_evidence": false,
+  "recorded_date": "2026-07-15",
+  "superseded_by": "docs/45_SECURITY_CONTINUATION_2026-07-18.md",
+  "warning": "Do not use for current acceptance: only 1 of 8 recorded source hashes matches the current tree, the release binary is absent, and the recorded toolchain predates the current pin.",
+  "package": "kf-intake",
+  "historical_evidence_class": "VERIFIED_IMPLEMENTATION_EVIDENCE (independently reproduced in-session)",
+  "toolchain": {
+    "rustc": "rustc 1.97.0 (2d8144b78 2026-07-07)",
+    "cargo": "cargo 1.97.0 (c980f4866 2026-06-30)",
+    "target_triple": "x86_64-unknown-linux-gnu",
+    "os": "Linux 6.8.0-124-generic"
+  },
+  "release_binary_sha256": "8124eef315e3049775807231636958472d7dba22965c8094c8bf95253f8a9ee5",
+  "commands": [
+    "cargo build --release",
+    "cargo run --release -- demo"
+  ],
+  "source_manifest_sha256": {
+    ".gitignore": "10b5ae095dbaac1ae8957213c4cd79fb33b6c426050f948355f4e1ced236dd2a",
+    "Cargo.toml": "cd0c40a1c05ddd712e7ad0b28df772b6cb25cda4b6cefe8899087377703c0ba8",
+    "README.md": "fc4538df46a77351f82e3331e49f15c91d341dd6c82263ecebdc69a7129b1261",
+    "src/cas.rs": "ef819f9e477c3642d7f0000d9e01fa40840108df6a2226bb62a0033d29a1f40f",
+    "src/identity.rs": "ceec50a920cee047bb1f8e37d69f38aabb6958a0ff6591cf58e6959b3e7d79d4",
+    "src/jcs.rs": "556efcab4305f339be467a30f5a976f8e291ab088a967288393beffdd3c69b6d",
+    "src/main.rs": "4f66a25eef9f0f2bd822fbaf3f8cf2ee3d583dfd7483c46504a34c38e4eb8cf8",
+    "src/meta.rs": "e3b7b4471928b58515bee77ea440895b68c6132a8d98b1742c03c27eb5e5d1c9"
+  }
+}

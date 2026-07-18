@@ -1,0 +1,7 @@
+[package]
+name = "trading-risk"
+version = "0.1.0"
+edition = "2021"
+description = "Trading Cell RiskService — deterministic proposal-only risk filter (D5, closure §9)"
+[lib]
+path = "src/lib.rs"

@@ -1,0 +1,28 @@
+# Контур самоулучшения (docs/04). Агент-Proposer может создавать ТОЛЬКО этот объект + ветки.
+ImprovementProposal:
+  schema_version: "1.0"
+  proposal_id: uuid_v7
+  target_type: enum[PROMPT, SKILL, CODE, CONFIG]
+  target_ref: string                # роль/skill-путь/модуль/конфиг-ключ
+  risk_class: enum[LOW, MEDIUM, HIGH, FORBIDDEN]   # FORBIDDEN: политики, риск-лимиты, конституция, eval-судьи
+  hypothesis: string                # что улучшится и почему (из рефлексии над трейсами)
+  evidence_trace_ids: [string]      # трейсы провалов, породившие предложение
+  diff_artifact_id: string          # изменение — только артефактом, не чатом
+  parent_version: string
+  branch_id: string                 # ветка Workflow Branching для эксперимента
+  eval_plan:
+    dataset_id: string              # golden set (НЕ изменяемый этим же proposal — анти-Гудхарт)
+    baseline_eval_id: string
+    required_delta: number          # насколько обязан побить baseline
+    regression_budget: number       # допустимый % регрессий (обычно 0)
+  budget_policy_id: string          # отдельный бюджет P4/P5
+  status: enum[PROPOSED, BUILT, EVALUATED, GATED, CANARY, PROMOTED, ROLLED_BACK, ARCHIVED]
+  canary:
+    traffic_pct: number
+    min_runs: int32
+    auto_rollback_metric: string
+  approvals:
+    policy_decision_id: string
+    human_approval_id: string|null  # обязателен для CODE, CONFIG(risk>=MEDIUM), всех HIGH
+  rollback_ref: string              # обязан существовать ДО внедрения
+  created_at: timestamp

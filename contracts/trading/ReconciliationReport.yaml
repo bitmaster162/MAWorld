@@ -1,0 +1,8 @@
+ReconciliationReport:
+  schema_version: "1.0"
+  account_id: string
+  instrument_id: string
+  venue_reported_net_position: int64
+  local_cached_net_position: int64
+  discrepancy: int64
+  action_taken: enum[NONE, SYNTHETIC_ORDER_GENERATED, HALT_REQUESTED]

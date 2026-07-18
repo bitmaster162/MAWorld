@@ -1,0 +1,36 @@
+# Local secrets and machine-specific configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Python/Rust build and runtime artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+target/
+
+# Local durable stores and generated evidence
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.log
+
+# Superseded pre-hardening review snapshot; current source is the repository
+/MAWorld_review_package.zip
+
+# Editor/OS state
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

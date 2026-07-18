@@ -1,0 +1,1546 @@
+openapi: 3.1.0
+info:
+  title: MAWorld Knowledge Foundry API
+  version: 1.0.0
+  summary: Incremental evidence-to-implementation workspace API
+  description: |
+    Build-ready API contract for immutable raw intake, provenance, atomic claims,
+    contradiction review, explicit canonicalization and implementation mapping.
+    Text extracted from artifacts is always treated as data, never as executable instruction.
+servers:
+  - url: http://localhost:8080
+    description: Local MVP
+security:
+  - bearerAuth: []
+tags:
+  - name: Intake
+  - name: Artifacts
+  - name: Claims
+  - name: Contradictions
+  - name: Canonicalization
+  - name: Implementation
+  - name: Research
+  - name: Search
+  - name: Review
+  - name: Operations
+
+paths:
+  /v1/intake/files:
+    post:
+      tags: [Intake]
+      summary: Hash and store one immutable raw file
+      operationId: intakeFile
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ProjectKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, source_system_key]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                source_system_key:
+                  type: string
+                  examples: [manual-drop]
+                source_native_id:
+                  type: string
+                original_uri_or_path:
+                  type: string
+                observed_at:
+                  type: string
+                  format: date-time
+                declared_data_class:
+                  $ref: '#/components/schemas/DataClass'
+                metadata:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '202':
+          description: Artifact accepted; immutable raw storage and extraction jobs created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntakeResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          description: File exceeds configured size or expansion limits
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /v1/intake/folder-scans:
+    post:
+      tags: [Intake]
+      summary: Start or resume a local-folder scan
+      operationId: scanLocalFolder
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ProjectKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [connector_id, root_id]
+              properties:
+                connector_id:
+                  type: string
+                  format: uuid
+                root_id:
+                  type: string
+                  format: uuid
+                  description: Server-registered allowlisted root; clients cannot submit filesystem paths
+                include_globs:
+                  type: array
+                  items: {type: string}
+                exclude_globs:
+                  type: array
+                  items: {type: string}
+                resume_cursor:
+                  type: object
+                  additionalProperties: true
+                max_files:
+                  type: integer
+                  minimum: 1
+                  maximum: 100000
+      responses:
+        '202':
+          description: Resumable ingestion run created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionRun'
+
+  /v1/connectors/{connector_id}/sync:
+    post:
+      tags: [Intake]
+      summary: Poll or resume one connector using its incremental cursor
+      operationId: syncConnector
+      parameters:
+        - $ref: '#/components/parameters/ConnectorId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ProjectKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: [INCREMENTAL, BACKFILL, RETRY]
+                  default: INCREMENTAL
+                cursor_override:
+                  type: object
+                  additionalProperties: true
+                dry_run:
+                  type: boolean
+                  default: false
+      responses:
+        '202':
+          description: Connector sync accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionRun'
+        '429':
+          description: Connector rate limit reached; retry information returned
+
+  /v1/artifacts/{artifact_id}:
+    get:
+      tags: [Artifacts]
+      summary: Retrieve immutable raw artifact metadata and recovery location
+      operationId: getArtifact
+      parameters:
+        - $ref: '#/components/parameters/ArtifactId'
+      responses:
+        '200':
+          description: Artifact metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Artifact'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/versions/{version_id}:
+    get:
+      tags: [Artifacts]
+      summary: Retrieve a source-specific artifact version and lineage
+      operationId: getArtifactVersion
+      parameters:
+        - $ref: '#/components/parameters/VersionId'
+      responses:
+        '200':
+          description: Artifact version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactVersion'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/versions/{version_id}/classify:
+    post:
+      tags: [Artifacts]
+      summary: Classify data sensitivity before external-provider routing
+      operationId: classifyVersion
+      parameters:
+        - $ref: '#/components/parameters/VersionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClassificationRequest'
+      responses:
+        '200':
+          description: Effective classification decision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataClassification'
+
+  /v1/versions/{version_id}/extract:
+    post:
+      tags: [Artifacts]
+      summary: Queue sandboxed text and structure extraction
+      operationId: extractVersion
+      parameters:
+        - $ref: '#/components/parameters/VersionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                parser_profile:
+                  type: string
+                  examples: [docling-safe-v1]
+                force_retry:
+                  type: boolean
+                  default: false
+                routing_policy_ref:
+                  type: string
+                  description: Reference to a server-owned policy; never a client permission flag
+                  maxLength: 128
+      responses:
+        '202':
+          description: Extraction job queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '423':
+          description: Artifact is quarantined or blocked by policy
+
+  /v1/versions/{version_id}/relations:
+    post:
+      tags: [Artifacts]
+      summary: Confirm duplicate, version, derivative, citation or contradiction relation
+      operationId: createArtifactRelation
+      parameters:
+        - $ref: '#/components/parameters/VersionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtifactRelationRequest'
+      responses:
+        '201':
+          description: Immutable relation object created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObjectEnvelope'
+
+  /v1/claims:
+    get:
+      tags: [Claims]
+      summary: List atomic claims using status, source, scope and time filters
+      operationId: listClaims
+      parameters:
+        - $ref: '#/components/parameters/ProjectKey'
+        - name: status
+          in: query
+          schema:
+            type: array
+            items: {$ref: '#/components/schemas/ClaimStatus'}
+          style: form
+          explode: false
+        - name: source_version_id
+          in: query
+          schema: {type: string, format: uuid}
+        - name: subject
+          in: query
+          schema: {type: string}
+        - name: include_superseded
+          in: query
+          schema: {type: boolean, default: false}
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Paginated atomic claims
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClaimPage'
+
+  /v1/claims/{claim_id}/review:
+    post:
+      tags: [Claims, Review]
+      summary: Accept, reject, dispute, stale or request evidence for a claim
+      operationId: reviewClaim
+      parameters:
+        - $ref: '#/components/parameters/ClaimId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClaimReviewRequest'
+      responses:
+        '200':
+          description: New claim review event and effective status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Claim'
+
+  /v1/contradictions:
+    get:
+      tags: [Contradictions]
+      summary: List unresolved or historical contradictions
+      operationId: listContradictions
+      parameters:
+        - $ref: '#/components/parameters/ProjectKey'
+        - name: state
+          in: query
+          schema: {type: string}
+        - name: severity
+          in: query
+          schema: {$ref: '#/components/schemas/RiskTier'}
+        - name: include_resolved
+          in: query
+          schema: {type: boolean, default: false}
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Contradiction records
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/ContradictionRecord'}
+                  next_cursor: {type: [string, 'null']}
+
+  /v1/contradictions/{contradiction_id}/resolve:
+    post:
+      tags: [Contradictions, Review]
+      summary: Resolve a conflict without silently merging affected objects
+      operationId: resolveContradiction
+      parameters:
+        - $ref: '#/components/parameters/ContradictionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ContinuityCapability'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContradictionResolutionRequest'
+      responses:
+        '200':
+          description: Resolution event created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContradictionRecord'
+        '403':
+          $ref: '#/components/responses/PolicyDenied'
+
+  /v1/open-questions:
+    post:
+      tags: [Contradictions]
+      summary: Create a governed open question or required experiment
+      operationId: createOpenQuestion
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenQuestionRequest'
+      responses:
+        '201':
+          description: Open question created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenQuestion'
+
+  /v1/canonical-decisions/preview:
+    post:
+      tags: [Canonicalization]
+      summary: Evaluate policy, conflicts and impact without mutation
+      operationId: previewCanonicalDecision
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ContinuityCapability'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CanonicalDecisionRequest'
+      responses:
+        '200':
+          description: Policy preview and required approvals
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanonicalDecisionPreview'
+
+  /v1/canonical-decisions:
+    post:
+      tags: [Canonicalization]
+      summary: Create a signed immutable canonical decision event
+      operationId: createCanonicalDecision
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ContinuityCapability'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CanonicalDecisionRequest'
+      responses:
+        '201':
+          description: Signed immutable decision created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanonicalDecision'
+        '403':
+          $ref: '#/components/responses/PolicyDenied'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /v1/canonical-decisions/{decision_id}/supersede:
+    post:
+      tags: [Canonicalization]
+      summary: Append a signed supersession without overwriting history
+      operationId: supersedeCanonicalDecision
+      parameters:
+        - $ref: '#/components/parameters/DecisionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ContinuityCapability'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupersessionRequest'
+      responses:
+        '201':
+          description: Supersession record created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupersessionRecord'
+        '403':
+          $ref: '#/components/responses/PolicyDenied'
+
+  /v1/implementation-links:
+    post:
+      tags: [Implementation]
+      summary: Link a decision or claim to ADR, schema, code, ticket, test, deployment or runtime evidence
+      operationId: createImplementationLink
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImplementationLinkRequest'
+      responses:
+        '201':
+          description: Implementation link created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImplementationLink'
+
+  /v1/coverage:
+    get:
+      tags: [Implementation]
+      summary: Show decision-to-implementation and implementation-to-evidence gaps
+      operationId: getImplementationCoverage
+      parameters:
+        - $ref: '#/components/parameters/ProjectKey'
+        - name: scope
+          in: query
+          schema:
+            type: string
+            enum: [ALL, DECISIONS, MODULES, SCHEMAS, TESTS, DEPLOYMENTS]
+            default: ALL
+      responses:
+        '200':
+          description: Coverage report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoverageReport'
+
+  /v1/research-runs:
+    post:
+      tags: [Research]
+      summary: Register a reproducible Deep Research run
+      operationId: createResearchRun
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResearchRunRequest'
+      responses:
+        '201':
+          description: Research run registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResearchRun'
+
+  /v1/research-runs/{research_run_id}/result:
+    post:
+      tags: [Research]
+      summary: Attach raw result and source ledger, then queue source audit
+      operationId: attachResearchResult
+      parameters:
+        - $ref: '#/components/parameters/ResearchRunId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [raw_result_artifact_id, source_ledger]
+              properties:
+                raw_result_artifact_id:
+                  type: string
+                  format: uuid
+                source_ledger:
+                  type: array
+                  items: {$ref: '#/components/schemas/SourceLedgerEntry'}
+                reported_task_id:
+                  type: string
+                completeness:
+                  type: number
+                  minimum: 0
+                  maximum: 1
+      responses:
+        '202':
+          description: Result accepted for source audit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResearchRun'
+        '409':
+          description: Reported task does not match registered run
+
+  /v1/search:
+    get:
+      tags: [Search]
+      summary: Hybrid exact, metadata, full-text, semantic and graph retrieval
+      operationId: searchKnowledge
+      parameters:
+        - $ref: '#/components/parameters/ProjectKey'
+        - name: q
+          in: query
+          required: true
+          schema: {type: string, minLength: 1}
+        - name: mode
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [EXACT, METADATA, FULL_TEXT, SEMANTIC, GRAPH]
+            default: [FULL_TEXT, SEMANTIC]
+          style: form
+          explode: false
+        - name: current_canonical_only
+          in: query
+          schema: {type: boolean, default: false}
+        - name: include_superseded
+          in: query
+          schema: {type: boolean, default: false}
+        - name: trust_classes
+          in: query
+          schema:
+            type: array
+            items: {$ref: '#/components/schemas/TrustClass'}
+          style: form
+          explode: false
+        - name: data_classes
+          in: query
+          schema:
+            type: array
+            items: {$ref: '#/components/schemas/DataClass'}
+          style: form
+          explode: false
+        - name: as_of
+          in: query
+          schema: {type: string, format: date-time}
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Ranked results with authority and provenance facets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchPage'
+
+  /v1/snapshots/{snapshot_id}/delta:
+    get:
+      tags: [Search]
+      summary: Show canonical, evidence and implementation changes since a snapshot
+      operationId: getSnapshotDelta
+      parameters:
+        - $ref: '#/components/parameters/SnapshotId'
+        - name: compare_to
+          in: query
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Snapshot delta
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotDelta'
+
+  /v1/review/inbox:
+    get:
+      tags: [Review]
+      summary: Retrieve prioritized operator review tasks
+      operationId: getReviewInbox
+      parameters:
+        - $ref: '#/components/parameters/ProjectKey'
+        - name: queue
+          in: query
+          schema:
+            type: string
+            enum: [UNCLASSIFIED, DUPLICATES, CLAIMS, CONTRADICTIONS, CANON, OPEN_QUESTIONS, STALE, SENSITIVE]
+        - name: status
+          in: query
+          schema: {type: string, default: OPEN}
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Prioritized review tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/ReviewTask'}
+                  next_cursor: {type: [string, 'null']}
+
+  /v1/jobs/{job_id}/retry:
+    post:
+      tags: [Operations]
+      summary: Retry a failed idempotent job from its persisted checkpoint
+      operationId: retryJob
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reset_terminal_failure:
+                  type: boolean
+                  default: false
+                available_at:
+                  type: string
+                  format: date-time
+      responses:
+        '202':
+          description: Retry queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+
+  /v1/indexes/semantic/rebuild:
+    post:
+      tags: [Operations]
+      summary: Rebuild the non-authoritative semantic index from derived search documents
+      operationId: rebuildSemanticIndex
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ProjectKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                embedding_model:
+                  type: string
+                scope:
+                  type: string
+                  enum: [ALL, CURRENT_ONLY, CANONICAL_ONLY]
+                  default: ALL
+                delete_existing_generation:
+                  type: boolean
+                  default: false
+      responses:
+        '202':
+          description: Rebuild job queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, minLength: 8, maxLength: 200}
+      description: Stable key for replay-safe writes.
+    ContinuityCapability:
+      name: X-Continuity-Capability
+      in: header
+      required: true
+      schema: {type: string}
+      description: Capability token or signed policy decision issued by ContinuityOS.
+    ProjectKey:
+      name: X-Project-Key
+      in: header
+      required: true
+      schema: {type: string}
+      example: maworld
+    ArtifactId:
+      name: artifact_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    VersionId:
+      name: version_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    ClaimId:
+      name: claim_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    ContradictionId:
+      name: contradiction_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    DecisionId:
+      name: decision_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    ConnectorId:
+      name: connector_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    ResearchRunId:
+      name: research_run_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    SnapshotId:
+      name: snapshot_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    JobId:
+      name: job_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    Cursor:
+      name: cursor
+      in: query
+      schema: {type: string}
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+
+  responses:
+    NotFound:
+      description: Resource not found or not visible under the current access policy
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    Conflict:
+      description: Idempotency, version, canonical or unresolved-conflict violation
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    ValidationError:
+      description: Input failed schema or policy validation
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    PolicyDenied:
+      description: ContinuityOS denied the requested capability or approval tier
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+
+  schemas:
+    DataClass:
+      type: string
+      enum: [PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED, SECRET, QUARANTINED]
+    ArtifactState:
+      type: string
+      enum: [RAW, PARSED, INDEXED, CLAIMS_EXTRACTED, REVIEW_REQUIRED, ACCEPTED_AS_EVIDENCE, CANDIDATE_CANON, CANONICAL, SUPERSEDED, ARCHIVED, QUARANTINED]
+    ClaimStatus:
+      type: string
+      enum: [PROPOSED, SUPPORTED, VERIFIED, DISPUTED, CONTRADICTED, STALE, SUPERSEDED, UNVERIFIABLE, REJECTED]
+    RiskTier:
+      type: string
+      enum: [LOW, MEDIUM, HIGH, CRITICAL]
+    TrustClass:
+      type: string
+      enum: [PRIMARY_OFFICIAL, PRIMARY_CODE, PRIMARY_RUNTIME_EVIDENCE, USER_AUTHORED, INDEPENDENT_RESEARCH, VENDOR_CLAIM, SECONDARY_SOURCE, MODEL_INFERENCE, UNVERIFIED_IMPORT, MALICIOUS_OR_QUARANTINED]
+    ReviewStatus:
+      type: string
+      enum: [OPEN, CLAIMED, BLOCKED, APPROVED, REJECTED, CANCELLED, EXPIRED]
+
+    Actor:
+      type: object
+      required: [actor_type, actor_id]
+      properties:
+        actor_type:
+          type: string
+          enum: [HUMAN, SERVICE, MODEL, CONNECTOR, POLICY]
+        actor_id: {type: string}
+        display_name: {type: string}
+
+    SourceReference:
+      type: object
+      required: [source_system_id, source_native_id]
+      properties:
+        source_system_id: {type: string, format: uuid}
+        source_native_id: {type: string}
+        source_revision_key: {type: string}
+        uri_or_path: {type: string}
+
+    ObjectEnvelope:
+      type: object
+      required: [object_id, schema_version, source_references, content_hash, created_at, created_by, project_scope, data_class, status, provenance, policy_context]
+      properties:
+        object_id: {type: string, format: uuid}
+        schema_version: {type: string}
+        source_references:
+          type: array
+          items: {$ref: '#/components/schemas/SourceReference'}
+        content_hash:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        created_at: {type: string, format: date-time}
+        created_by: {$ref: '#/components/schemas/Actor'}
+        project_scope: {type: string, format: uuid}
+        data_class: {$ref: '#/components/schemas/DataClass'}
+        status: {type: string}
+        provenance:
+          type: object
+          additionalProperties: true
+        policy_context:
+          type: object
+          additionalProperties: true
+
+    Artifact:
+      allOf:
+        - $ref: '#/components/schemas/ObjectEnvelope'
+        - type: object
+          required: [artifact_id, byte_size, media_type, raw_storage_uri]
+          properties:
+            artifact_id: {type: string, format: uuid}
+            byte_size: {type: integer, minimum: 0}
+            media_type: {type: string}
+            detected_file_type: {type: string}
+            original_filename: {type: string}
+            raw_storage_uri: {type: string}
+            storage_version_id: {type: string}
+            object_lock_mode: {type: string}
+            retain_until: {type: [string, 'null'], format: date-time}
+            malware_scan_status: {type: string}
+            secret_scan_status: {type: string}
+            recoverability_verified_at: {type: [string, 'null'], format: date-time}
+
+    ArtifactVersion:
+      allOf:
+        - $ref: '#/components/schemas/ObjectEnvelope'
+        - type: object
+          required: [version_id, artifact_id, source_system_id, source_native_id, source_revision_key, observed_at, state]
+          properties:
+            version_id: {type: string, format: uuid}
+            artifact_id: {type: string, format: uuid}
+            logical_document_id: {type: [string, 'null'], format: uuid}
+            parent_version_id: {type: [string, 'null'], format: uuid}
+            duplicate_cluster_id: {type: [string, 'null'], format: uuid}
+            source_system_id: {type: string, format: uuid}
+            source_native_id: {type: string}
+            source_revision_key: {type: string}
+            original_uri_or_path: {type: string}
+            observed_at: {type: string, format: date-time}
+            source_created_at: {type: [string, 'null'], format: date-time}
+            source_modified_at: {type: [string, 'null'], format: date-time}
+            source_deleted_at: {type: [string, 'null'], format: date-time}
+            is_partial: {type: boolean}
+            is_tombstone: {type: boolean}
+            state: {$ref: '#/components/schemas/ArtifactState'}
+            lineage:
+              type: array
+              items:
+                type: object
+                properties:
+                  relation: {type: string}
+                  target_version_id: {type: string, format: uuid}
+                  confidence: {type: number, minimum: 0, maximum: 1}
+
+    IngestionRun:
+      allOf:
+        - $ref: '#/components/schemas/ObjectEnvelope'
+        - type: object
+          required: [ingestion_run_id, source_system_id, trigger_kind, idempotency_key, started_at, run_status]
+          properties:
+            ingestion_run_id: {type: string, format: uuid}
+            source_system_id: {type: string, format: uuid}
+            trigger_kind: {type: string, enum: [MANUAL, POLL, PUSH, BACKFILL, RETRY]}
+            idempotency_key: {type: string}
+            cursor_before: {type: object, additionalProperties: true}
+            cursor_after: {type: object, additionalProperties: true}
+            started_at: {type: string, format: date-time}
+            ended_at: {type: [string, 'null'], format: date-time}
+            run_status: {type: string}
+            discovered_count: {type: integer}
+            ingested_count: {type: integer}
+            skipped_count: {type: integer}
+            failed_count: {type: integer}
+
+    IntakeResponse:
+      type: object
+      required: [artifact, version, ingestion_run, jobs]
+      properties:
+        artifact: {$ref: '#/components/schemas/Artifact'}
+        version: {$ref: '#/components/schemas/ArtifactVersion'}
+        ingestion_run: {$ref: '#/components/schemas/IngestionRun'}
+        deduplication:
+          type: object
+          properties:
+            exact_duplicate: {type: boolean}
+            existing_artifact_id: {type: [string, 'null'], format: uuid}
+            candidate_cluster_ids:
+              type: array
+              items: {type: string, format: uuid}
+        jobs:
+          type: array
+          items: {$ref: '#/components/schemas/Job'}
+
+    ClassificationRequest:
+      type: object
+      required: [classification, reasons, classifier_kind]
+      properties:
+        classification: {$ref: '#/components/schemas/DataClass'}
+        reasons:
+          type: array
+          items: {type: string}
+        classifier_kind:
+          type: string
+          enum: [HUMAN, RULE, MODEL, SECRET_SCANNER]
+        secret_findings:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        provider_routes_requested:
+          type: array
+          items: {type: string}
+
+    DataClassification:
+      allOf:
+        - $ref: '#/components/schemas/ObjectEnvelope'
+        - type: object
+          required: [classification_id, target_object_id, classification, reasons, classifier_kind]
+          properties:
+            classification_id: {type: string, format: uuid}
+            target_object_id: {type: string, format: uuid}
+            classification: {$ref: '#/components/schemas/DataClass'}
+            reasons:
+              type: array
+              items: {type: string}
+            classifier_kind: {type: string}
+            reviewed_at: {type: [string, 'null'], format: date-time}
+
+    ArtifactRelationRequest:
+      type: object
+      required: [target_version_id, relation, confidence, rationale]
+      properties:
+        target_version_id: {type: string, format: uuid}
+        relation:
+          type: string
+          enum: [EXACT_DUPLICATE, NEAR_DUPLICATE, VERSION_OF, DERIVATIVE_OF, CITES, CONTRADICTS, SUPERSEDES, EXTRACTED_FROM, ATTACHMENT_OF, MERGED_FROM, UNRELATED]
+        confidence: {type: number, minimum: 0, maximum: 1}
+        rationale:
+          type: object
+          additionalProperties: true
+        human_confirmation_ref:
+          type: [string, 'null']
+          default: null
+          description: Reference to an externally verified, action-bound approval; claimant booleans are not authority.
+
+    Claim:
+      allOf:
+        - $ref: '#/components/schemas/ObjectEnvelope'
+        - type: object
+          required: [claim_id, normalized_assertion, exact_source_excerpt, source_location, subject, predicate, object_value, source_version_id, extraction_confidence, claim_status]
+          properties:
+            claim_id: {type: string, format: uuid}
+            normalized_assertion: {type: string}
+            exact_source_excerpt: {type: string}
+            source_location: {type: object, additionalProperties: true}
+            scope: {type: object, additionalProperties: true}
+            subject: {type: string}
+            predicate: {type: string}
+            object_value: {}
+            valid_from: {type: [string, 'null'], format: date-time}
+            valid_until: {type: [string, 'null'], format: date-time}
+            source_version_id: {type: string, format: uuid}
+            author: {$ref: '#/components/schemas/Actor'}
+            extraction_confidence: {type: number, minimum: 0, maximum: 1}
+            claim_status: {$ref: '#/components/schemas/ClaimStatus'}
+            evidence_links:
+              type: array
+              items: {$ref: '#/components/schemas/EvidenceLink'}
+
+    EvidenceLink:
+      allOf:
+        - $ref: '#/components/schemas/ObjectEnvelope'
+        - type: object
+          required: [evidence_link_id, claim_id, support, independence]
+          properties:
+            evidence_link_id: {type: string, format: uuid}
+            claim_id: {type: string, format: uuid}
+            evidence_artifact_id: {type: [string, 'null'], format: uuid}
+            evidence_version_id: {type: [string, 'null'], format: uuid}
+            evidence_object_id: {type: [string, 'null'], format: uuid}
+            support:
+              type: string
+              enum: [SUPPORTS, PARTIALLY_SUPPORTS, REFUTES, CONTEXTUALIZES, IMPLEMENTS, VERIFIES, CITES]
+            independence:
+              type: string
+              enum: [INDEPENDENT, PARTIALLY_DEPENDENT, SAME_ORIGIN, DERIVED_FROM_CLAIM, UNKNOWN]
+            freshness_score: {type: [number, 'null'], minimum: 0, maximum: 1}
+            quality_score: {type: [number, 'null'], minimum: 0, maximum: 1}
+            exact_evidence_excerpt: {type: [string, 'null']}
+            limitations:
+              type: array
+              items: {type: string}
+
+    ClaimPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/Claim'}
+        next_cursor: {type: [string, 'null']}
+
+    ClaimReviewRequest:
+      type: object
+      required: [action, rationale]
+      properties:
+        action:
+          type: string
+          enum: [SUPPORT, VERIFY, DISPUTE, CONTRADICT, MARK_STALE, REJECT, REQUEST_VERIFICATION]
+        rationale: {type: string}
+        evidence_link_ids:
+          type: array
+          items: {type: string, format: uuid}
+        create_open_question:
+          type: boolean
+          default: false
+
+    ContradictionRecord:
+      allOf:
+        - $ref: '#/components/schemas/ObjectEnvelope'
+        - type: object
+          required: [contradiction_id, contradiction_kind, title, description, severity, resolution_state, affected_claim_ids]
+          properties:
+            contradiction_id: {type: string, format: uuid}
+            contradiction_kind: {type: string}
+            title: {type: string}
+            description: {type: string}
+            severity: {$ref: '#/components/schemas/RiskTier'}
+            resolution_state: {type: string}
+            affected_claim_ids:
+              type: array
+              items: {type: string, format: uuid}
+            affected_decision_ids:
+              type: array
+              items: {type: string, format: uuid}
+            proposed_tests:
+              type: array
+              items: {type: object, additionalProperties: true}
+            final_resolution: {type: [object, 'null'], additionalProperties: true}
+
+    ContradictionResolutionRequest:
+      type: object
+      required: [resolution, rationale, affected_object_actions]
+      properties:
+        resolution:
+          type: string
+          enum: [RESOLVED, ACCEPTED_DIVERGENCE, TEST_REQUIRED, SUPERSEDED, REJECTED]
+        rationale: {type: string}
+        winning_claim_ids:
+          type: array
+          items: {type: string, format: uuid}
+        affected_object_actions:
+          type: array
+          items:
+            type: object
+            required: [object_id, action]
+            properties:
+              object_id: {type: string, format: uuid}
+              action: {type: string, enum: [KEEP, REJECT, SUPERSEDE, MARK_STALE, OPEN_QUESTION]}
+        test_result_object_ids:
+          type: array
+          items: {type: string, format: uuid}
+
+    OpenQuestionRequest:
+      type: object
+      required: [question, rationale, priority, resolution_criteria]
+      properties:
+        question: {type: string}
+        rationale: {type: string}
+        priority: {$ref: '#/components/schemas/RiskTier'}
+        affected_object_ids:
+          type: array
+          items: {type: string, format: uuid}
+        owner: {$ref: '#/components/schemas/Actor'}
+        due_at: {type: [string, 'null'], format: date-time}
+        resolution_criteria:
+          type: object
+          additionalProperties: true
+        required_experiment:
+          type: [object, 'null']
+          additionalProperties: true
+
+    OpenQuestion:
+      allOf:
+        - $ref: '#/components/schemas/ObjectEnvelope'
+        - $ref: '#/components/schemas/OpenQuestionRequest'
+        - type: object
+          required: [open_question_id, status]
+          properties:
+            open_question_id: {type: string, format: uuid}
+            status: {type: string}
+            answer: {type: [object, 'null'], additionalProperties: true}
+
+    CanonicalDecisionRequest:
+      type: object
+      required: [decision_key, decision_type, risk_tier, resolution, decision_statement, rationale, claim_ids, evidence_link_ids, assumptions, alternatives, rejected_alternatives, risks, confidence, acceptance_test, revisit_trigger]
+      properties:
+        decision_key: {type: string, pattern: '^[A-Z0-9_.-]+$'}
+        expected_prior_version: {type: [integer, 'null'], minimum: 1}
+        title: {type: string}
+        decision_type:
+          type: string
+          enum: [TERMINOLOGY, INVARIANT, ARCHITECTURE, SCHEMA, API_CONTRACT, REPOSITORY_STRUCTURE, POLICY, BENCHMARK, IMPLEMENTATION_STATUS, PRODUCT_HYPOTHESIS]
+        risk_tier: {$ref: '#/components/schemas/RiskTier'}
+        resolution:
+          type: string
+          enum: [ACCEPTED, REJECTED, DEFERRED, EXPERIMENT_REQUIRED]
+        decision_statement: {type: string}
+        rationale: {type: string}
+        claim_ids:
+          type: array
+          minItems: 1
+          items: {type: string, format: uuid}
+        evidence_link_ids:
+          type: array
+          items: {type: string, format: uuid}
+        assumptions:
+          type: array
+          items: {type: string}
+        alternatives:
+          type: array
+          items: {type: object, additionalProperties: true}
+        rejected_alternatives:
+          type: array
+          items: {type: object, additionalProperties: true}
+        risks:
+          type: array
+          items: {type: object, additionalProperties: true}
+        confidence: {type: number, minimum: 0, maximum: 1}
+        acceptance_test:
+          type: object
+          additionalProperties: true
+        revisit_trigger:
+          type: object
+          additionalProperties: true
+        architecture_impacts:
+          type: array
+          items: {type: object, additionalProperties: true}
+
+    CanonicalDecisionPreview:
+      type: object
+      required: [allowed, risk_tier, required_approvals, blocking_conflicts, decision_hash]
+      properties:
+        allowed: {type: boolean}
+        risk_tier: {$ref: '#/components/schemas/RiskTier'}
+        required_approvals:
+          type: array
+          items: {type: string}
+        blocking_conflicts:
+          type: array
+          items: {type: string, format: uuid}
+        policy_decision_id: {type: string}
+        decision_hash:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        warnings:
+          type: array
+          items: {type: string}
+
+    CanonicalDecision:
+      allOf:
+        - $ref: '#/components/schemas/ObjectEnvelope'
+        - $ref: '#/components/schemas/CanonicalDecisionRequest'
+        - type: object
+          required: [canonical_decision_id, decision_version, approved_by, approved_at, policy_decision_id, signature_algorithm, signature, immutable_payload_hash]
+          properties:
+            canonical_decision_id: {type: string, format: uuid}
+            decision_version: {type: integer, minimum: 1}
+            approved_by: {$ref: '#/components/schemas/Actor'}
+            approved_at: {type: string, format: date-time}
+            policy_decision_id: {type: string}
+            signature_algorithm: {type: string}
+            signature: {type: string}
+            immutable_payload_hash:
+              type: string
+              pattern: '^[0-9a-f]{64}$'
+
+    SupersessionRequest:
+      type: object
+      required: [superseding_object_id, reason, effective_at]
+      properties:
+        superseding_object_id: {type: string, format: uuid}
+        reason: {type: string}
+        effective_at: {type: string, format: date-time}
+
+    SupersessionRecord:
+      allOf:
+        - $ref: '#/components/schemas/ObjectEnvelope'
+        - type: object
+          required: [supersession_record_id, superseded_object_id, superseding_object_id, reason, effective_at, approved_by, policy_decision_id, signature]
+          properties:
+            supersession_record_id: {type: string, format: uuid}
+            superseded_object_id: {type: string, format: uuid}
+            superseding_object_id: {type: string, format: uuid}
+            reason: {type: string}
+            effective_at: {type: string, format: date-time}
+            approved_by: {$ref: '#/components/schemas/Actor'}
+            policy_decision_id: {type: string}
+            signature: {type: string}
+
+    ImplementationLinkRequest:
+      type: object
+      required: [link_type]
+      properties:
+        canonical_decision_id: {type: [string, 'null'], format: uuid}
+        claim_id: {type: [string, 'null'], format: uuid}
+        architecture_impact_id: {type: [string, 'null'], format: uuid}
+        link_type:
+          type: string
+          enum: [IMPLEMENTS, PARTIALLY_IMPLEMENTS, VERIFIES, DEPLOYS, OBSERVES, CONTRADICTS, DEPRECATES]
+        repository: {type: string}
+        repository_path: {type: string}
+        git_commit_sha: {type: string}
+        pull_request_ref: {type: object, additionalProperties: true}
+        ticket_ref: {type: object, additionalProperties: true}
+        test_ref: {type: object, additionalProperties: true}
+        deployment_ref: {type: object, additionalProperties: true}
+        runtime_evidence_ref: {type: object, additionalProperties: true}
+        observed_at: {type: [string, 'null'], format: date-time}
+
+    ImplementationLink:
+      allOf:
+        - $ref: '#/components/schemas/ObjectEnvelope'
+        - $ref: '#/components/schemas/ImplementationLinkRequest'
+        - type: object
+          required: [implementation_link_id, verification_status]
+          properties:
+            implementation_link_id: {type: string, format: uuid}
+            verification_status: {$ref: '#/components/schemas/ClaimStatus'}
+
+    CoverageReport:
+      type: object
+      required: [generated_at, metrics, gaps]
+      properties:
+        generated_at: {type: string, format: date-time}
+        metrics:
+          type: object
+          properties:
+            accepted_decisions: {type: integer}
+            decisions_implemented: {type: integer}
+            decisions_verified: {type: integer}
+            code_without_decision: {type: integer}
+            tickets_without_evidence: {type: integer}
+            schemas_without_consumers: {type: integer}
+            stale_documentation: {type: integer}
+        gaps:
+          type: array
+          items:
+            type: object
+            required: [gap_type, object_ids, severity]
+            properties:
+              gap_type: {type: string}
+              object_ids:
+                type: array
+                items: {type: string, format: uuid}
+              severity: {$ref: '#/components/schemas/RiskTier'}
+              recommended_action: {type: string}
+
+    ResearchRunRequest:
+      type: object
+      required: [task_id, exact_prompt, context_manifest, source_priority, excluded_scope, model_provider, model_name]
+      properties:
+        task_id: {type: string}
+        exact_prompt: {type: string}
+        context_manifest:
+          type: object
+          required: [manifest_version, included_object_ids]
+          properties:
+            manifest_version: {type: string}
+            included_object_ids:
+              type: array
+              items: {type: string, format: uuid}
+            attached_version_ids:
+              type: array
+              items: {type: string, format: uuid}
+            exclusions:
+              type: array
+              items: {type: object, additionalProperties: true}
+            token_budget: {type: integer}
+        source_priority:
+          type: array
+          items: {type: object, additionalProperties: true}
+        excluded_scope:
+          type: array
+          items: {type: string}
+        model_provider: {type: string}
+        model_name: {type: string}
+        model_configuration: {type: object, additionalProperties: true}
+        blind_group_key: {type: [string, 'null']}
+
+    ResearchRun:
+      allOf:
+        - $ref: '#/components/schemas/ObjectEnvelope'
+        - $ref: '#/components/schemas/ResearchRunRequest'
+        - type: object
+          required: [research_run_id, run_status, prompt_hash]
+          properties:
+            research_run_id: {type: string, format: uuid}
+            run_status:
+              type: string
+              enum: [PLANNED, RUNNING, RESULT_RECEIVED, SOURCES_AUDITED, CLAIMS_EXTRACTED, DELTA_REVIEWED, MERGED_OR_REJECTED, ARCHIVED]
+            prompt_hash:
+              type: string
+              pattern: '^[0-9a-f]{64}$'
+            started_at: {type: [string, 'null'], format: date-time}
+            ended_at: {type: [string, 'null'], format: date-time}
+            raw_result_artifact_id: {type: [string, 'null'], format: uuid}
+            completeness: {type: [number, 'null'], minimum: 0, maximum: 1}
+            reviewer_decision: {type: [string, 'null']}
+
+    SourceLedgerEntry:
+      type: object
+      required: [accessed_at, trust_class]
+      properties:
+        source_uri: {type: string}
+        source_title: {type: string}
+        publisher: {type: string}
+        author: {$ref: '#/components/schemas/Actor'}
+        published_at: {type: [string, 'null'], format: date-time}
+        accessed_at: {type: string, format: date-time}
+        content_hash:
+          type: [string, 'null']
+          pattern: '^[0-9a-f]{64}$'
+        archived_artifact_id: {type: [string, 'null'], format: uuid}
+        trust_class: {$ref: '#/components/schemas/TrustClass'}
+        citation_locator: {type: object, additionalProperties: true}
+
+    SearchResult:
+      type: object
+      required: [object_id, object_type, score, authority_state, data_class, provenance_summary]
+      properties:
+        object_id: {type: string, format: uuid}
+        object_type: {type: string}
+        title: {type: string}
+        snippet: {type: string}
+        score: {type: number}
+        score_components:
+          type: object
+          properties:
+            exact: {type: number}
+            full_text: {type: number}
+            semantic: {type: number}
+            graph: {type: number}
+            trust: {type: number}
+            freshness: {type: number}
+        authority_state: {type: string}
+        data_class: {$ref: '#/components/schemas/DataClass'}
+        trust_classes:
+          type: array
+          items: {$ref: '#/components/schemas/TrustClass'}
+        source_version_id: {type: [string, 'null'], format: uuid}
+        provenance_summary: {type: object, additionalProperties: true}
+
+    SearchPage:
+      type: object
+      required: [items, query_plan]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/SearchResult'}
+        next_cursor: {type: [string, 'null']}
+        query_plan:
+          type: object
+          additionalProperties: true
+        warnings:
+          type: array
+          items: {type: string}
+
+    SnapshotDelta:
+      type: object
+      required: [base_snapshot_id, target_snapshot_id, changes]
+      properties:
+        base_snapshot_id: {type: string, format: uuid}
+        target_snapshot_id: {type: string, format: uuid}
+        changes:
+          type: object
+          properties:
+            canonical_added:
+              type: array
+              items: {type: string, format: uuid}
+            canonical_superseded:
+              type: array
+              items: {type: string, format: uuid}
+            claims_status_changed:
+              type: array
+              items: {type: object, additionalProperties: true}
+            contradictions_opened:
+              type: array
+              items: {type: string, format: uuid}
+            contradictions_resolved:
+              type: array
+              items: {type: string, format: uuid}
+            implementation_links_changed:
+              type: array
+              items: {type: object, additionalProperties: true}
+
+    ReviewTask:
+      allOf:
+        - $ref: '#/components/schemas/ObjectEnvelope'
+        - type: object
+          required: [review_task_id, queue_name, action_type, target_object_id, priority, risk_tier, review_status, context_bundle, allowed_actions]
+          properties:
+            review_task_id: {type: string, format: uuid}
+            queue_name: {type: string}
+            action_type: {type: string}
+            target_object_id: {type: string, format: uuid}
+            priority: {type: integer, minimum: 0, maximum: 1000}
+            risk_tier: {$ref: '#/components/schemas/RiskTier'}
+            review_status: {$ref: '#/components/schemas/ReviewStatus'}
+            assigned_to: {$ref: '#/components/schemas/Actor'}
+            due_at: {type: [string, 'null'], format: date-time}
+            context_bundle: {type: object, additionalProperties: true}
+            allowed_actions:
+              type: array
+              items: {type: string}
+
+    Job:
+      type: object
+      required: [job_id, job_type, idempotency_key, job_status, priority, attempts, max_attempts, available_at]
+      properties:
+        job_id: {type: string, format: uuid}
+        job_type: {type: string}
+        idempotency_key: {type: string}
+        job_status:
+          type: string
+          enum: [QUEUED, RUNNING, SUCCEEDED, FAILED_RETRYABLE, FAILED_TERMINAL, CANCELLED]
+        priority: {type: integer}
+        attempts: {type: integer}
+        max_attempts: {type: integer}
+        available_at: {type: string, format: date-time}
+        locked_at: {type: [string, 'null'], format: date-time}
+        last_error: {type: [object, 'null'], additionalProperties: true}
+
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: {type: string, format: uri-reference}
+        title: {type: string}
+        status: {type: integer}
+        detail: {type: string}
+        instance: {type: string, format: uri-reference}
+        code: {type: string}
+        correlation_id: {type: string}
+        policy_decision_id: {type: string}
+        errors:
+          type: array
+          items:
+            type: object
+            additionalProperties: true

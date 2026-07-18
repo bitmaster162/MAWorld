@@ -1,0 +1,19 @@
+[package]
+name = "kf-intake"
+version = "0.1.0"
+edition = "2021"
+description = "MAWorld Knowledge Foundry — intake vertical slice (RawBlob CAS + identity + JCS)"
+
+[dependencies]
+sha2 = "0.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_json_canonicalizer = "0.3"
+uuid = { version = "1", features = ["v7"] }
+anyhow = "1"
+hex = "0.4"
+ed25519-dalek = { version = "=3.0.0", default-features = false }
+
+[[bin]]
+name = "kf"
+path = "src/main.rs"

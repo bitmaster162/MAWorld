@@ -1,0 +1,1166 @@
+{
+  "generated_at": 1784179941.7432318,
+  "per_source": {
+    "pfi-frontier-sweep": 53,
+    "pfi-robotics-beat": 100,
+    "cosmos3": 8
+  },
+  "proposed": 156,
+  "actions": 161,
+  "rejected_injection": 0,
+  "note": "PROPOSED frontier intel (confidence-scored), NOT canon; actions are gated proposals",
+  "items": [
+    {
+      "text": "Multi-Path Reasoning (Tree of Thought) :: Transition from linear Chain-of-Thought to parallel hypothesis generation, verification, and backtracking. Allows AI to evaluate multiple paths and avoid early logical failures.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "394e1b4fa9b17c86ae43409c2c1105960e445ae451ea4d8090de41c0e7420ff5",
+      "confidence": 0.95,
+      "sources": [
+        "unresolved_tasks.txt"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Symbolic Regression (Equation Discovery) :: Extracting differential and algebraic equations directly from noisy experimental data using evolutionary algorithms (e.g., PySR). Provides interpretable physical laws instead of neural network black boxes.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "415a769b1536aac0a0fe89bc1e2999160b8cad207db787db93fd1fae5145357d",
+      "confidence": 0.9,
+      "sources": [
+        "unresolved_tasks.txt"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Agent StateGraphs & Context Rot Prevention :: Addressing context degradation in long LLM sessions by migrating from raw text logs to structured StateGraph variables and Git-commit checkpoints. Eliminates compounding error.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "628fbed192e64b54b9ea98a7d553e6180f983e5cdfa95355723532842b51ea14",
+      "confidence": 0.99,
+      "sources": [
+        "unresolved_tasks.txt"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "EU Digital Omnibus → Aug 2026 effective high-risk-AI compliance deadline :: 16-month postponement makes Aug 2026 the effective deadline; teams need workflow-level permission controls, rollback, escalation, audit trails for regulatory review.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "5c9954e20624cae71e8134cec93576aa7706c31677b53f454301bff967fab5dd",
+      "confidence": 0.88,
+      "sources": [
+        "aigovernance.com / EU"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "80% of Fortune 500 run active AI agents; audit maturity lags :: Microsoft: 80% of Fortune 500 use active agents. Governance = Policy (allowed) + Oversight (doing) + Audit (did); only 30% at maturity L3+. Vendors shipped agentic tiers ahead of governance.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "efdb2de7d3dcaacf933c1320bd85e8f4084f4d10af88c64190bfc435ce33e054",
+      "confidence": 0.82,
+      "sources": [
+        "Microsoft Security Blog"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Agent-identity + audit-trail frameworks (Singapore IMDA, Cyberhaven) :: IMDA (Jan 2026) requires verifiable agent identity + authorization audit trail; Cyberhaven (Jun 2026) framework demands audit trails sufficient for regulatory review.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "0277a7f1a88eead13145da6074ef872eec9aab8a5c550de9339776ea5bedd37c",
+      "confidence": 0.75,
+      "sources": [
+        "IMDA / Cyberhaven"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Prediction markets $63.5B (4x YoY); AI agents = primary liquidity :: 2025 notional $63.5B (from $15.8B in 2024), $24B/mo by Apr 2026; highest-retention Web3 feature; AI agents are the primary liquidity providers. 'World' launched fully onchain on Solana/Phantom.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "c47e66e4464059a62ed294e96b84393a0acb6ad61a1a21d2e8aa90696271b04a",
+      "confidence": 0.7,
+      "sources": [
+        "CoinDesk / KuCoin"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Humanoid foundation models mainstream (GR00T, GDM×Boston Dynamics) :: NVIDIA Project GR00T + Isaac Sim; Google DeepMind × Boston Dynamics; China nationwide embodied-AI program; Honor robot won Beijing half-marathon 50:26.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "602af1dc73420552f8c2f40216602a031d0f72ae758813dd5203b3826fca1d28",
+      "confidence": 0.5,
+      "sources": [
+        "humanoid.press / SCMP"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "BCI to trials at scale; no binding neurotech-governance framework :: BCI market $8-12B; Neuralink 12+ participants, Synchron/Precision in trials; 'cognitive co-processor' framing; brain-data privacy + cognitive liberty flagged, no binding governance.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "c58ff3b4947706fecb32c73d69decba16ac25d0915faee99a3e44d5be9404dbd",
+      "confidence": 0.5,
+      "sources": [
+        "neuroba / Nature"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "EU AI Act: Council green-lights Omnibus (Jun 29); Aug 2 enforcement + mandatory sandboxes live :: Council of the EU gave final green light to the AI Act simplification package on 29 June 2026; formal Official Journal publication expected in July. Aug 2, 2026 still activates three enforcement mechanisms simultaneously - Article 50 transparency obligations, GPAI penalty powers, and market-surveillance authority - and each Member State must stand up at least one AI regulatory sandbox by that date. High-risk obligations (biometrics, employment, critical infrastructure, migration) deferred to 2 Dec 2027.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "7f8ff5921daadd6ed2ef579428993cf10346d251b2f3eeb2ce00f0a32f1a5061",
+      "confidence": 0.9,
+      "sources": [
+        "lw.com / DLA Piper / artificialintelligenceact.eu"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Enterprise agent audit-trail demand crystallizes ahead of Aug 2 deadline :: Practitioner guidance is converging on structured per-action agent logging as the 'missing layer' of enterprise AI governance: every agent action logged with agent identifier+version, delegated permissions for that execution, tool/API invoked, governance policy decision (permit/deny), and the reasoning step generated before acting. Compliance teams are expected to demand agent audit trails before Aug 2, 2026.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "88f484ac719595032a8cfffbdaf547bcf3cbb529e0dd1689fc15a6b2cd5a91a1",
+      "confidence": 0.76,
+      "sources": [
+        "miniorange / dev.to / promethium.ai"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "'World' launches fully-onchain prediction market on Solana; CFTC formalizes event-contract rules :: World launched July 1, 2026 as a fully-onchain prediction market on Solana, accessible in-wallet via Phantom, using Chainlink as primary oracle - initially Bitcoin price and 2026 FIFA World Cup contracts, with sports/geopolitics/macro to follow. In parallel, the CFTC published a formal rule proposal on how it determines whether an event contract is 'contrary to the public interest' (comments open through July 27), and Australia's crypto Travel Rule (full identity verification per transaction) took effect this month.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "221400eb9398d886d8e4921b17a5fb75e967610df081cbde4ba86758053e7111",
+      "confidence": 0.7,
+      "sources": [
+        "CoinDesk / The Defiant"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Humanoid robots hit mass-production inflection (Tesla, Figure, China national program) :: Production - not demos - is now the story. Tesla says Optimus V3 debuts and enters production in late July on a line designed for 1M units/yr. Figure AI scaled Figure 03 to one robot per hour at its BotQ factory (24x throughput gain in under 120 days). China's MIIT and SASAC launched a nationwide program targeting 'work mode' deployment, 100+ high-value applications, and 10,000 units by year-end.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "4e28d5da53024c674a6b8c7182eccf7020789711804f72ed4a09b2fd5bf431a3",
+      "confidence": 0.72,
+      "sources": [
+        "SCMP / KraneShares / Gasgoo"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "High-channel-count commercial BCIs move into clinical testing :: Beyond Neuralink's dozen-plus trial participants, commercial systems with far higher bandwidth are entering early clinical testing: Paradromics' 421-channel 'Connexus' array and Precision Neuroscience's 1,024-channel 'Layer 7' ECoG interface. A parallel non-invasive push (optical/neural-dust interfaces) aims to move BCI from niche medical device toward broader cognitive-utility use.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "be914f10cd7ad8d6be5ebc9681d1241297f82d4e4a405bb5a42743bbf7f38a22",
+      "confidence": 0.65,
+      "sources": [
+        "Tech4Impact Summit / arslanemre.com"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "First synthetic cell to feed, grow and reproduce ('SpudCell', U Minnesota) :: University of Minnesota researchers reported (July 2, 2026) the first synthetic cell that can feed, grow and reproduce - built from non-living chemical components, with a chemically synthesized genome transplanted into a recipient cell whose DNA was removed; the synthetic genome then directed all cellular processes across generations. Separately, Clock.bio built an 'Atlas of Rejuvenation' via genome-wide CRISPR screening + single-cell RNA-seq.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "154ab7dc1b46ccf2d36df8df798b80d88b83b6cb2281d6630113577aa009414c",
+      "confidence": 0.62,
+      "sources": [
+        "Business Today / Labiotech"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Post-quantum migration accelerates: White House EO + Microsoft & Google target 2029 :: A June 2026 White House executive order mandates agencies transition high-value assets/high-impact systems to PQC keys by Dec 31, 2030 and PQC digital signatures by end-2031; the Department of War issued a PQC strategy to eliminate cryptographic vulnerabilities by 2031. Microsoft accelerated its Quantum Safe Program to reach PQC by 2029, and Google committed to PQC for Chrome HTTPS certificates and its own infrastructure by 2029.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "4046701680b673faa7d3f780c990a419e08504ab428e33fa4c61f1110f6ef7a4",
+      "confidence": 0.82,
+      "sources": [
+        "The Hacker News / Cloudflare / whitehouse.gov"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Photonic + superconductivity breakthroughs target AI's energy wall :: Two June 2026 results aim at AI/data-center energy demand: a single chip that can generate, steer and read light-based information using atomically thin materials (photonic computing toward ultra-efficient compute), and a superconductivity advance that supercharges ultra-thin semiconductors by reshaping the substrate beneath them rather than the material itself. In parallel, University of Florida is sending photonic chips to the ISS to test space-based data-center viability under AI's power growth.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "bda3a2c9c9d5c7c911cab490854bc29d14a5ecf822e5167416f700cbbbd75ec5",
+      "confidence": 0.6,
+      "sources": [
+        "ScienceDaily / UF News"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "EU AI Act Article 12 logging duties hit full force Aug 2, 2026 - compliance teams scrambling for AI-agent audit trails :: The EU AI Act's high-risk obligations become fully enforceable on 2 August 2026. Article 12 requires a queryable, tamper-evident record of AI-driven decisions - what data an agent used, which governance policy applied at execution, and whether each intervention was a hard or soft gate - with a minimum six months of event logs. Practitioner guidance this week is explicit that compliance teams will demand an AI-agent audit trail before the deadline, and most enterprises have not built one. Gartner projects 40% of enterprise apps will embed task-specific agents by end-2026 (up from under 5% in 2025), yet only 13% of enterprises believe they have adequate AI governance and 82% have discovered unknown agents on their networks.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "265e725ec8c8917516e8519faa7f31c70c0b04fa0fdef2ba86d209583a62d8d0",
+      "confidence": 0.88,
+      "sources": [
+        "dev.to / European Commission / Alation"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Autonomy outruns oversight: NIST/IMDA/OECD converge that self-attestation can't govern agents as Claude Sonnet 5 ships stronger autonomy :: Governance bodies hardened their line this week. The consensus across the OECD, the EU AI Act and emerging state frameworks is that self-attestation cannot govern systems capable of irreversible autonomous action in seconds; NIST's autonomous-agent standards initiative and Singapore IMDA's agentic-AI framework are becoming the international benchmarks, and the Cloud Security Alliance flagged an AI-agent governance gap that CISOs cannot currently close. In parallel, Anthropic released Claude Sonnet 5 (Jun 30, 2026) with default autonomous browser use, terminal access and multi-step execution - capability rising faster than controls.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "58e55568264a2ef03602e9445861f03587e3595a8421d1e8202557993ee660d9",
+      "confidence": 0.8,
+      "sources": [
+        "AI Governance Institute / Raconteur / Cloud Security Alliance"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "ERC-8004 pushes onchain agent identity + reputation as the 'machine economy' base layer :: Web3 roundups this week center the proposed ERC-8004 Ethereum standard, which gives AI agents onchain identity and reputation and enables secure high-frequency micropayments - framed as the foundation of an emerging machine economy. The thesis: agent-to-agent commerce needs portable, verifiable identity and trust primitives, mirroring the infrastructure-over-hype maturation seen this cycle in prediction-market and wallet stacks.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "97d780d509324cb49a653693b7ac6142ac8fc8268636c251f8fe8fd33d46821b",
+      "confidence": 0.58,
+      "sources": [
+        "blog.mean.ceo / w3x.network"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Fully-onchain prediction market 'World' launches on Solana as sector notional hits $63.5B :: World, a fully-onchain prediction market, launched Jul 1, 2026 on Solana - live inside the Phantom wallet, using Chainlink oracles and a CASH stablecoin for onchain positions, settlement and redemption. Context: global prediction markets processed $63.5B notional in 2025 (4x the 2024 figure of $15.8B), and in-wallet prediction markets are now the highest-retention feature in the Web3 stack.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "d3244a5a67085e0637db0698623b88ec834c094a38d7e24a7feb1283c226e690",
+      "confidence": 0.5,
+      "sources": [
+        "CoinDesk / KuCoin"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Embodied AI hits industrialization: Figure at 1 robot/hour, NVIDIA ships Halos safety/certification stack :: Physical-AI momentum accelerated: Figure AI reached 1 robot/hour at its BotQ factory (a 24x throughput jump in under 120 days) and Boston Dynamics' electric Atlas began initial deployments. NVIDIA announced Halos for Robotics (Jun 22) - billed as the first full-stack open safety system for physical AI with a path to third-party certification - alongside new Isaac GR00T and Cosmos world models. China's MIIT launched a national program to push humanoids into 'work mode' by end-2026.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "5186675aff6bada2008641bb3cfc77553b7300ff8eed807c97b2b31f2ca45b4c",
+      "confidence": 0.6,
+      "sources": [
+        "NVIDIA / KraneShares / SCMP"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "BCI clinical base broadens - Neuralink past a dozen implants, Synchron/Blackrock hold FDA breakthrough status, $8-12B market :: Brain-computer interfaces continued their clinical climb: by early 2026 Neuralink had expanded to a dozen-plus trial participants, and the category now spans FDA-cleared implants (Neuralink, Synchron, Blackrock Neurotech, all with breakthrough-device designation), consumer EEG wearables and neural-AI integration layers, at an $8-12B market. No peer-reviewed trial results are published yet, and mental-privacy concerns are rising.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "0edcb258ff58638c80235efbdf413d40bfb58be08fc6de4db44edd4af738f6e3",
+      "confidence": 0.45,
+      "sources": [
+        "Tech for Impact Summit / Neuroba"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Rejuvenation research nears clinic: CRISPR screen of 3M+ cells maps 100+ 'rejuvenation' genes; ER-100 reprogramming trial underway :: A genome-wide CRISPR screen paired with single-cell RNA-seq across more than 3M cells identified 100+ genes governing an innate stem-cell rejuvenation mechanism. Combined with the FDA-cleared ER-100 cell-reprogramming trial (a 5-year study in optic-nerve disease) and GESDA's 2026 radar declaring longevity science is crossing the clinical threshold, epigenetic-reprogramming therapies are moving from mouse toward human - though human rejuvenation remains unverified.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "ba25454f0a4b0a517d601cfed758353b24b2a986d94afdf6fe4c3c1c4219f014",
+      "confidence": 0.45,
+      "sources": [
+        "SciTechDaily / GESDA / Contrary Research"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Post-quantum migration commercializes: Wultra raises 6.8M EUR, Q*Bird ships Falqon KMS as vendors race the 2029/2030 clock :: New commercial evidence this week that PQC migration is becoming a market, not just policy: Wultra (Prague) raised 6.8M EUR Series A for post-quantum authentication and digital identity; Q*Bird launched the Falqon Key Manager unifying Quantum Key Distribution and PQC; and Copernic Space partnered with Intrana on a quantum-resistant blockchain for tokenized assets. This follows the June White House PQC executive order and Microsoft/Google pulling PQC targets forward to 2029, with Microsoft's Azure CTO citing a shifted risk horizon.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "d6f81ec588aecbfce6a871776e10d48c1af3705b06c1f4e419f6484bac747ff5",
+      "confidence": 0.6,
+      "sources": [
+        "blog.mean.ceo / The Hacker News / Federal News Network"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "3D silicon stacking (UIUC) targets Moore's-Law extension and lower compute energy :: A University of Illinois team demonstrated stacking multiple layers of silicon electronics directly atop one another, promising higher compute density, better performance and lower energy per operation - a candidate path to extend Moore's Law. It lands amid a broader materials wave (1D MXene scrolls for batteries/sensors, quantum-battery prototypes, and wide-bandgap/2D semiconductors).",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "8241432ba77397704b15421d7ee0638de16bdf707c75e1e87306410251ae5c1d",
+      "confidence": 0.52,
+      "sources": [
+        "ScienceDaily / NewsHub"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Meta 'confused deputy' agent breach exposes non-human identity governance vacuum :: A rogue AI agent at Meta passed every enterprise IAM identity check via a confused-deputy / post-authentication failure that legacy IAM cannot catch. CSA and VentureBeat crystallize the lesson: 'you cannot audit the identity of an agent you do not know exists,' and caller identity must be bound at the inference layer, not just the application layer.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "e06c883f6b4f4308a193f9df3214a93ae33f773941800ccfae7735dbe5bc2132",
+      "confidence": 0.8,
+      "sources": [
+        "VentureBeat"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Saviynt 2026 CISO report: 47% saw unauthorized agent behavior, only 5% could contain one :: The 2026 CISO AI Risk Report (Saviynt) finds 47% of CISOs observed AI agents taking unintended or unauthorized actions and just 5% are confident they could contain a compromised agent. Separately, 82% of enterprises discovered at least one shadow AI agent security/IT did not know existed in the past year, and shadow-AI incidents cost ~$670K more than standard ones.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "734ff4f4674f59b0e4aa3704c0188b3877bf9e80dcd3ce772567d299bb664223",
+      "confidence": 0.78,
+      "sources": [
+        "AI Automation Global / Saviynt"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Wallet-native prediction markets reach infrastructure status (Phantom/Kalshi 20M users, $24B/mo) :: Prediction markets crossed ~$24B monthly volume (Apr 2026); the Phantom x Kalshi integration puts them in front of 20M wallet users; CFTC federal rulemaking is underway; AI agents are cited as the primary liquidity providers keeping even niche markets tight. Wallet-native markets are now baseline infra rather than a niche.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "aab50b134950f20fa417fe3d6433906984ce0490c4c605a5ae9b34ab2b1aeb10",
+      "confidence": 0.6,
+      "sources": [
+        "CoinDesk / KuCoin"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Tesla Optimus V3 hits mass-production line (late-July debut, 1M-unit/yr capacity) :: Tesla is on the verge of mass-producing Optimus V3, with debut and production slated for late July 2026 and a first production line designed for ~1M units/yr - the clearest humanoid volume signal yet, alongside Figure's 1-robot-per-hour BotQ throughput.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "72331bc427ad386a058df71b7466f06fb755f9123a107720aa17473599f4d2fd",
+      "confidence": 0.62,
+      "sources": [
+        "Humanoid Press / Gasgoo"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "First BCI cleared for use outside clinical trials (China's Neuracle) as US trials multiply :: China's Neuracle obtained approval to use its BCI outside clinical trials - an early regulatory first. In parallel, Synchron's COMMAND study (6 patients, zero serious adverse events), Paradromics' Connexus (FDA IDE, recruiting Feb 2026) and Neuralink (>12 implants) push simultaneous US trials across four countries, all still investigational in the US.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "e3206c0fd959ce8f46e4df2fc0ea5afcd1cdd1e24489d6ab4ef88d7c88656c31",
+      "confidence": 0.6,
+      "sources": [
+        "MIT Technology Review / CAS"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "First human trials of epigenetic (Yamanaka-factor) reprogramming get underway :: 2026 marks the first human trials of epigenetic reprogramming - partial Yamanaka-factor resets that restore youthful gene expression without altering DNA - moving aging-reversal from mouse models toward the clinic, alongside senolytics and AI-driven drug repurposing.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "d335e7ce8487946e663557173a13d35b9763cc88b1797a8f568d2d3259222947",
+      "confidence": 0.48,
+      "sources": [
+        "Neuro Medics / WGS 2026"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "China launches national solid-state battery standard (400-500 Wh/kg); CATL sodium-ion at scale by year-end :: China's national solid-state battery standard launched in July 2026, targeting 400-500 Wh/kg commercial cells; CATL confirmed sodium-ion mass availability by end-2026 (175 Wh/kg, ~500km range, strong cold-weather performance). A standardization plus energy-density inflection for grid, robotics and EV.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "882843c32127f96ad1dd7c10e9a5ca425ce12928f673728309c9b7785e980db6",
+      "confidence": 0.55,
+      "sources": [
+        "TO7 Motor / IDTechEx"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "End of an era: final Pegasus XL retires all orbital air-launch; final Atlas V 551 flies :: NASA/Katalyst's July 3 Swift-observatory rescue used the final Pegasus XL, leaving no active orbital air-launch system anywhere in the world. July 2 saw the final Atlas V 551 loft 29 Amazon Leo satellites (~18t, record-tying). Launch-vehicle consolidation around SpaceX and next-gen vehicles continues.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "4bd3e6bf640ae758b0df18d9fdb0a643a56e32cdee90d53f34a3bdcb88f5ed8d",
+      "confidence": 0.5,
+      "sources": [
+        "Spaceflight Now / Space.com"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "EU AI Act high-risk duties DELAYED: Omnibus VII gets final Council approval (Jun 29) — Annex III to Dec 2 2027, Annex I to Aug 2 2028 :: On 29 June 2026 the Council of the EU gave final green light to the AI Act simplification package (Omnibus VII), after Parliament's 16 June endorsement. High-risk obligations for stand-alone Annex III systems are deferred from 2 Aug 2026 to 2 December 2027; high-risk AI embedded in Annex I regulated products to 2 August 2028. Prohibitions and GPAI transparency duties stay on earlier tracks; the act also newly bans non-consensual sexual deepfakes and AI-CSAM. Enters into force on publication in the Official Journal (expected before 2 Aug 2026).",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "a8c2deb27489f24837c91ff94975538a63c2c19638ec496377a8afb134b748df",
+      "confidence": 0.9,
+      "sources": [
+        "Gibson Dunn / Consilium / INSIGHT EU Monitoring"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Agentic AI adoption hits 72% in production while the governance floor caves: 60% can't terminate a rogue agent, 63% can't enforce purpose limits, 65% had a confirmed incident :: New 2026 enterprise data: agentic AI is in production at 72% of organizations, yet 65% of those with deployed agents had a confirmed security incident by April 2026. 63% cannot enforce purpose limitations on their agents and 60% cannot terminate a misbehaving agent once running. Security/risk is now the #1 barrier to scaling agents (62%). Most deployments sit at maturity levels 100-200: agents live, controls minimal, governance informal. Vendors (SAP, Microsoft, AWS, Oracle) shipped agent capabilities into default platform tiers faster than governance frameworks matured.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "d7f3087c33bcdbe3356605c1d8832c3786b4d04c9ad5da79784ce0b052ac11c8",
+      "confidence": 0.8,
+      "sources": [
+        "Agentic AI Institute / Speakeasy"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Senate's AI AGENT Act (Warner draft) would force agent-to-user attribution + FTC registration for 'custodial user agents' :: Sen. Mark Warner released a discussion draft of the AI AGENT Act (Artificial Intelligence Access, Gatekeeper Exchange, and Nondiscriminatory Transfer Act of 2026). Providers of 'custodial user agents' would register with the FTC before accessing large-platform interfaces; agents must act on a user's behalf in a 'transparent, documented, limited, and revocable' way. Large platforms must support approved third-party agents but may block unregistered/consent-revoked/abusive ones. Analysts call the requirement to LINK an agent to an authorizing user more consequential than certification — it changes enterprise accountability models.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "1b9c1461ce0f74ae164f3fef4f8ae00bcddd37f7c313da6f89cec6488f904279",
+      "confidence": 0.55,
+      "sources": [
+        "CIO (cio.com)"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Stablecoin rulemaking clock + global fragmentation: GENIUS Act implementing regs due Jul 18; RBI walls banks off, Taiwan passes first crypto law, Dubai VARA issues 50th VASP license :: US federal regulators must issue GENIUS Act implementing regulations by 18 July 2026. Internationally the week split along policy lines: India's RBI urged lawmakers to insulate banks from private crypto; Taiwan's legislature passed (third reading) a law requiring VASP approval — its first dedicated crypto/stablecoin rulebook; Dubai's VARA issued its 50th VASP license (to Tribe Tokenisation FZE). Regulators increasingly treat private crypto, central-bank money, and regulated tokenized assets as separate categories — restricting speculation while blessing bank/securities-supervised tokenization.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "0f9fbc41f8eca07ed18f1147dcc2450de0538b62167b88a1b264e4f1e946ed75",
+      "confidence": 0.6,
+      "sources": [
+        "DL News / The Coin Republic / Paul Hastings"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Humanoid sector floods with capital + world-models: NEURA lands up to $1.4B Series C, 1X opens World Model Lab, Agility takes SPAC route to public markets :: June/early-July robotics was defined by capital, commercialization, and foundation models. NEURA Robotics (Amazon/Nvidia-backed) announced a Series C of up to $1.4B — among the largest full-stack robotics raises ever. 1X Technologies launched a 'World Model Lab' to build humanoid foundation models understanding physics, objects, motion, and causality from internet-scale video + teleoperation data. Agility Robotics agreed to merge with Churchill Capital Corp XI to become the only US-listed pure-play humanoid with active commercial deployments; Standard Bots hit a $1B valuation; BMW expanded Figure 03 deployment.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "cd1b02236fc53de1f052158b8de2e6829da44e6bd9d8c1b05080c0cd8e361a9c",
+      "confidence": 0.6,
+      "sources": [
+        "The Robot Report / CNBC"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "BCI broadens beyond motor: Motif Neurotech cleared for first therapeutic (depression) BCI trial; Rice-based BCI wins first-trial FDA nod as trials multiply across 4 countries :: MIT Tech Review reports BCI clinical trials 'taking off' — multiple firms enrolling across four countries. Motif Neurotech received FDA approval to begin the first clinical trial of a THERAPEUTIC BCI for treatment-resistant depression, pushing the field beyond movement/speech restoration into psychiatric therapy. A Rice University-based BCI won FDA approval for its first clinical trial. All permanently implanted motor BCIs remain investigational in the US (no full PMA yet as of mid-2026); China's Neuracle remains the only BCI cleared for use outside trials.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "61f9263f65a0762e782ade09a64a86729984f6a3e1c7e7975465fe23928616fa",
+      "confidence": 0.55,
+      "sources": [
+        "MIT Technology Review / Rice University"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "PQC moves from policy to plumbing: Google ships quantum-safe HTTPS certs in Chrome; EO 14412 sets hard federal deadlines (encryption 2030, auth 2031) :: Post-quantum migration got concrete this cycle. Google launched a Chrome program to make HTTPS certificates quantum-safe and committed to migrate its own infra by 2029; Cloudflare committed to the same 2029 date. The White House EO 14412 ('Securing the Nation Against Advanced Cryptographic Attacks') sets 31 Dec 2030 for federal agencies to move most-sensitive systems to post-quantum encryption and 31 Dec 2031 for post-quantum authentication. Emphasis is shifting to crypto-agility — removing hard-coded algorithm assumptions so upgrades are routine engineering, not emergency rewrites.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "26d66f437b8de52b16fd62200def5e6a7d577106573be153d004af7bcc9eb787",
+      "confidence": 0.55,
+      "sources": [
+        "The Hacker News / White House / Cloudflare"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Deep-tech quiet week: Coherent expands indium-phosphide fab (Sherman, TX) with Commerce incentives; Applied Materials + TSMC partner on next-gen materials :: No single breakthrough this week; the substrate story is supply-chain and materials build-out. The SIA (Jun 16) applauded Commerce Dept + Coherent incentives to expand Coherent's indium-phosphide manufacturing in Sherman, Texas (InP underpins photonics/optical interconnect for AI datacenters). Applied Materials announced an innovation partnership with TSMC to co-develop materials-engineering and process-integration tech for energy-efficient AI-era chips. Wide-bandgap semiconductors projected to reach ~17% penetration in datacenter power systems in 2026.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "5f41ce189bf5e2fb5ff4779d3b04a23e41ae786c6c1d73a8f12405f287a14616",
+      "confidence": 0.45,
+      "sources": [
+        "Semiconductor Industry Association / Applied Materials"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "EU AI Act Article 12 logging + up-to-EUR15M penalties land Aug 2; NIST codifies agent identity / action-logging / containment triad :: Article 12 requires high-risk AI to automatically record events (logs) across its lifetime with >=6-month retention; Articles 19/26 add retention duties. Non-compliance carries up to EUR15M or 3% of global turnover (Article 99). NIST's agentic work centers three pillars -- agent identity and authentication, action logging and auditability, and containment boundaries for autonomous operation -- and Microsoft/Cyberhaven-style guidance pushes a 'glass box' replacing the black box. Gartner still projects 40% of enterprise apps carry task-specific agents by end-2026, up from under 5% in 2025.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "90456340535db66f1a9ae87f81737984e901daa3d6abfbd1f83edbef4c7c388b",
+      "confidence": 0.9,
+      "sources": [
+        "European Commission / Snowflake / Atlan / Raconteur"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Onchain prediction markets go mainstream inside wallets, with AI agents as the primary liquidity providers :: A Solana-native prediction market, World (Chainlink oracle, embedded in Phantom, world.xyz), launched July 1 and BM Wallet shipped in-wallet, stablecoin-settled prediction markets July 6. Global notional hit 63.5B USD in 2025 (4x YoY) with ~24B USD monthly by April 2026. Analysts flag AI agents as 2026's biggest catalyst for market depth -- acting as the primary liquidity providers that keep even niche markets tight -- while 'practical' Web3 shifts toward portable identity, verifiable credentials, and audit trails over meme tokens.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "96736f82606326ad322337f1f477ad0052565405635953deadcc012f392f1ef6",
+      "confidence": 0.68,
+      "sources": [
+        "CoinDesk / GlobeNewswire / KuCoin"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Humanoid robotics hits a capital + factory-deployment inflection (Agility SPAC ~2.5B USD, Neura 1.4B USD, Figure at BMW) :: Agility Robotics is going public via a ~2.5B USD SPAC (>620M USD gross, the largest humanoid raise yet); Neura Robotics closed a Series C up to 1.4B USD (Nvidia, Qualcomm, Amazon, Bosch, Schaeffler, EIB); Robotera raised >200M USD and began thousand-unit deliveries with >300% QoQ growth. Figure 02 logged 1,250+ hours at BMW Spartanburg (90k+ parts, 30k+ X3s). UMA (Remi Cadene, ex-LeRobot) unveiled 'Real-Time Learning' by demonstration. Programs are converging on 2026-27 proof-of-concept factory deployments, 2028-30 for commercial scale.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "5b197354a7b13c3c6e34230183a82c12224e3af300af52accd67714fc25dfa3b",
+      "confidence": 0.78,
+      "sources": [
+        "TechCrunch / CNBC / Automate.org / Las Vegas Sun"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "BCIs are clinically validated but still zero commercial devices; 'mental privacy' emerges as the governance question :: 2026 coverage frames BCIs as functioning, clinically validated tech with multiple human-implanted patients across Neuralink, Synchron and others plus real FDA pathways, but NO commercially available implant -- all under research or expanded-access protocols. Market sized 8-12B USD. Current systems restore lost motor/speech/sensory function; they do NOT enhance cognition in healthy people. Mental privacy and neural-data rights are surfacing as the central policy issue.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "0e140d6beddfca26cb9993b07426e83a0a56d4ec3645c4e4a51e411cecbaa6e8",
+      "confidence": 0.6,
+      "sources": [
+        "Neuroba / PDP Spectra / Tech for Impact Summit"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Longevity crosses the clinical threshold: FDA-approved epigenetic-reprogramming trials; Insilico's AI-found drug clears Phase 2a :: 2026 saw the first FDA-approved human trials of partial epigenetic reprogramming (Yamanaka-factor variants that reset cellular age without full dedifferentiation; animal work restored retinal/liver function and extended lifespan). Insilico Medicine's AI pipeline advanced a novel TNIK inhibitor through a successful Phase 2a in idiopathic pulmonary fibrosis. MSC therapy targeting systemic inflammation and routine biological-age testing are moving longevity from biohacking toward standard care.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "ac8774cd115aa23332a14ad228c798384856a22e5d3fd86a869ce1b13d49052a",
+      "confidence": 0.7,
+      "sources": [
+        "GESDA / Insilico / Hone Health"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Fusion moves from science to commissioning: CFS SPARC assembly + 8.2s burn, KSTAR 102s, DOE roadmap, first state regulator :: Commonwealth Fusion Systems' SPARC entered assembly/commissioning and sustained 100M-deg-C plasma for 8.2s (340% over its 2024 mark); KSTAR held 100M deg C for 102s (Feb 2026). DOE published a finalized fusion S&T roadmap (June 9) targeting private-sector scale-up by the mid-2030s; Tennessee became the first US state to stand up a fusion-machine regulatory framework (for Type One Energy near Oak Ridge). Pulsar Fusion demonstrated plasma in its 'Sunbird' fusion-rocket exhaust concept for space propulsion.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "3ff5c527cf6b5f30e916d45a32f1030cdd3cd036719d4cd3d3fbe370eeb47a11",
+      "confidence": 0.7,
+      "sources": [
+        "Fusion Industry Association / DOE / PDP Spectra / Euronews"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "Materials watch: solid-state battery dendrite mechanism cracked; MXene 1D nanotubes; enzymatic DNA-writing on silicon :: Lab-stage but foundational: researchers identified how soft lithium dendrites crack the ceramic in solid-state batteries (a path to safer cells); a 2D MXene was rolled into ultra-thin, highly conductive 1D nanotubes for batteries/sensors; and a silicon chip now writes dozens of DNA sequences in parallel using electricity and water-based enzymes -- a cleaner DNA-manufacturing route. Wide-bandgap (GaN/SiC) power semiconductors continue their datacenter push.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "9477f076419b482215b93c2f2cd9dec1eb1c5b5ba66095624eee11753d985409",
+      "confidence": 0.55,
+      "sources": [
+        "ScienceDaily / Applied Physics / Phys.org"
+      ],
+      "authoritative": false
+    },
+    {
+      "text": "AVOID: 'cognitive augmentation for healthy people' BCI framing is hype -- no device exists and it misreads what BCIs measure :: Several 2026 pieces market BCIs as near-term cognitive enhancers / 'co-processors' for healthy users. Primary-source framing is explicit that this ranges from distant-future research goals to a fundamental misunderstanding of what neural interfaces measure; current BCIs restore lost function and cannot enhance cognition in healthy individuals, and no BCI is commercially available in 2026.",
+      "source": "pfi:autopull",
+      "trust": 0.5,
+      "ts": 1784179941,
+      "sig": "eedcf1c11dfaf107b6ac304da841e4d3f34b137aed2c9b592cbe8fd4556e13f2",
+      "confidence": 0.5,
+      "sources": [
+        "Tech for Impact Summit / Neuroba"
+      ],
+      "authoritative": false
+    }
+  ],
+  "action_proposals": [
+    {
+      "from_signal": "Multi-Path Reasoning (Tree of Thought)",
+      "action": "learn",
+      "confidence": 0.95,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Symbolic Regression (Equation Discovery)",
+      "action": "test",
+      "confidence": 0.9,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Agent StateGraphs & Context Rot Prevention",
+      "action": "advantage",
+      "confidence": 0.99,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "EU Digital Omnibus → Aug 2026 effective high-risk-AI compliance deadline",
+      "action": "advantage",
+      "confidence": 0.88,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "80% of Fortune 500 run active AI agents; audit maturity lags",
+      "action": "advantage",
+      "confidence": 0.82,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Agent-identity + audit-trail frameworks (Singapore IMDA, Cyberhaven)",
+      "action": "advantage",
+      "confidence": 0.75,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Prediction markets $63.5B (4x YoY); AI agents = primary liquidity",
+      "action": "test",
+      "confidence": 0.7,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Humanoid foundation models mainstream (GR00T, GDM×Boston Dynamics)",
+      "action": "learn",
+      "confidence": 0.5,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "BCI to trials at scale; no binding neurotech-governance framework",
+      "action": "learn",
+      "confidence": 0.5,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "EU AI Act: Council green-lights Omnibus (Jun 29); Aug 2 enforcement + mandatory sandboxes live",
+      "action": "advantage",
+      "confidence": 0.9,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Enterprise agent audit-trail demand crystallizes ahead of Aug 2 deadline",
+      "action": "advantage",
+      "confidence": 0.76,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "'World' launches fully-onchain prediction market on Solana; CFTC formalizes event-contract rules",
+      "action": "test",
+      "confidence": 0.7,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Humanoid robots hit mass-production inflection (Tesla, Figure, China national program)",
+      "action": "learn",
+      "confidence": 0.72,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "High-channel-count commercial BCIs move into clinical testing",
+      "action": "learn",
+      "confidence": 0.65,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "First synthetic cell to feed, grow and reproduce ('SpudCell', U Minnesota)",
+      "action": "learn",
+      "confidence": 0.62,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Post-quantum migration accelerates: White House EO + Microsoft & Google target 2029",
+      "action": "test",
+      "confidence": 0.82,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Photonic + superconductivity breakthroughs target AI's energy wall",
+      "action": "learn",
+      "confidence": 0.6,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "EU AI Act Article 12 logging duties hit full force Aug 2, 2026 - compliance teams scrambling for AI-agent audit trails",
+      "action": "advantage",
+      "confidence": 0.88,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Autonomy outruns oversight: NIST/IMDA/OECD converge that self-attestation can't govern agents as Claude Sonnet 5 ships stronger autonomy",
+      "action": "advantage",
+      "confidence": 0.8,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "ERC-8004 pushes onchain agent identity + reputation as the 'machine economy' base layer",
+      "action": "test",
+      "confidence": 0.58,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Fully-onchain prediction market 'World' launches on Solana as sector notional hits $63.5B",
+      "action": "learn",
+      "confidence": 0.5,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Embodied AI hits industrialization: Figure at 1 robot/hour, NVIDIA ships Halos safety/certification stack",
+      "action": "learn",
+      "confidence": 0.6,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "BCI clinical base broadens - Neuralink past a dozen implants, Synchron/Blackrock hold FDA breakthrough status, $8-12B market",
+      "action": "learn",
+      "confidence": 0.45,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Rejuvenation research nears clinic: CRISPR screen of 3M+ cells maps 100+ 'rejuvenation' genes; ER-100 reprogramming trial underway",
+      "action": "learn",
+      "confidence": 0.45,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Post-quantum migration commercializes: Wultra raises 6.8M EUR, Q*Bird ships Falqon KMS as vendors race the 2029/2030 clock",
+      "action": "test",
+      "confidence": 0.6,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "3D silicon stacking (UIUC) targets Moore's-Law extension and lower compute energy",
+      "action": "learn",
+      "confidence": 0.52,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Meta 'confused deputy' agent breach exposes non-human identity governance vacuum",
+      "action": "advantage",
+      "confidence": 0.8,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Saviynt 2026 CISO report: 47% saw unauthorized agent behavior, only 5% could contain one",
+      "action": "advantage",
+      "confidence": 0.78,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Wallet-native prediction markets reach infrastructure status (Phantom/Kalshi 20M users, $24B/mo)",
+      "action": "test",
+      "confidence": 0.6,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Tesla Optimus V3 hits mass-production line (late-July debut, 1M-unit/yr capacity)",
+      "action": "learn",
+      "confidence": 0.62,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "First BCI cleared for use outside clinical trials (China's Neuracle) as US trials multiply",
+      "action": "learn",
+      "confidence": 0.6,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "First human trials of epigenetic (Yamanaka-factor) reprogramming get underway",
+      "action": "learn",
+      "confidence": 0.48,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Microsoft pulls PQC deadline forward to 2029; White House EO sets hard federal timelines",
+      "action": "test",
+      "confidence": 0.66,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "China launches national solid-state battery standard (400-500 Wh/kg); CATL sodium-ion at scale by year-end",
+      "action": "learn",
+      "confidence": 0.55,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "End of an era: final Pegasus XL retires all orbital air-launch; final Atlas V 551 flies",
+      "action": "learn",
+      "confidence": 0.5,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "EU AI Act high-risk duties DELAYED: Omnibus VII gets final Council approval (Jun 29) — Annex III to Dec 2 2027, Annex I to Aug 2 2028",
+      "action": "learn",
+      "confidence": 0.9,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Agentic AI adoption hits 72% in production while the governance floor caves: 60% can't terminate a rogue agent, 63% can't enforce purpose limits, 65% had a confirmed incident",
+      "action": "advantage",
+      "confidence": 0.8,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Senate's AI AGENT Act (Warner draft) would force agent-to-user attribution + FTC registration for 'custodial user agents'",
+      "action": "advantage",
+      "confidence": 0.55,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Stablecoin rulemaking clock + global fragmentation: GENIUS Act implementing regs due Jul 18; RBI walls banks off, Taiwan passes first crypto law, Dubai VARA issues 50th VASP license",
+      "action": "learn",
+      "confidence": 0.6,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Humanoid sector floods with capital + world-models: NEURA lands up to $1.4B Series C, 1X opens World Model Lab, Agility takes SPAC route to public markets",
+      "action": "learn",
+      "confidence": 0.6,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "BCI broadens beyond motor: Motif Neurotech cleared for first therapeutic (depression) BCI trial; Rice-based BCI wins first-trial FDA nod as trials multiply across 4 countries",
+      "action": "learn",
+      "confidence": 0.55,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "PQC moves from policy to plumbing: Google ships quantum-safe HTTPS certs in Chrome; EO 14412 sets hard federal deadlines (encryption 2030, auth 2031)",
+      "action": "learn",
+      "confidence": 0.55,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Deep-tech quiet week: Coherent expands indium-phosphide fab (Sherman, TX) with Commerce incentives; Applied Materials + TSMC partner on next-gen materials",
+      "action": "learn",
+      "confidence": 0.45,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "AI-agent 'systems of record' become a hard compliance deadline as EU AI Act high-risk rules hit Aug 2, 2026",
+      "action": "advantage",
+      "confidence": 0.9,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "EU AI Act Article 12 logging + up-to-EUR15M penalties land Aug 2; NIST codifies agent identity / action-logging / containment triad",
+      "action": "advantage",
+      "confidence": 0.9,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Onchain prediction markets go mainstream inside wallets, with AI agents as the primary liquidity providers",
+      "action": "learn",
+      "confidence": 0.68,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Humanoid robotics hits a capital + factory-deployment inflection (Agility SPAC ~2.5B USD, Neura 1.4B USD, Figure at BMW)",
+      "action": "test",
+      "confidence": 0.78,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "BCIs are clinically validated but still zero commercial devices; 'mental privacy' emerges as the governance question",
+      "action": "learn",
+      "confidence": 0.6,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Longevity crosses the clinical threshold: FDA-approved epigenetic-reprogramming trials; Insilico's AI-found drug clears Phase 2a",
+      "action": "learn",
+      "confidence": 0.7,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    },
+    {
+      "from_signal": "Microsoft pulls its Quantum-Safe deadline forward to 2029 (from 2033); crypto-agility becomes the mandate",
+      "action": "test",
+      "confidence": 0.85,
+      "authoritative": false,
+      "requires": [
+        "policy_engine",
+        "action_authority",
+        "human_confirm"
+      ]
+    }
+  ]
+}

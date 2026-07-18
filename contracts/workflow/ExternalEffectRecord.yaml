@@ -1,0 +1,16 @@
+ExternalEffectRecord:
+  effect_id: string
+  workflow_id: string
+  branch_id: string
+  checkpoint_id: string
+  action_spec_id: string
+  idempotency_key: string
+  external_system: string
+  execution_status: enum[PENDING, SENT, CONFIRMED, FAILED, UNKNOWN]
+  external_confirmation: string|null
+  reversibility_class: enum[REVERSIBLE, COMPENSATABLE, IRREVERSIBLE, UNKNOWN]
+  compensation_action: string|null
+  compensation_status: enum[NOT_REQUIRED, PENDING, EXECUTED, FAILED, HOLD]
+  executed_at: timestamp|null
+  reconciled_at: timestamp|null
+# Инвариант: replay НИКОГДА не пере-исполняет эффект без idempotency+reconciliation+policy (ADR-D1)

@@ -1,0 +1,8 @@
+{
+  "source_status": "UNVERIFIED_OFFLINE_FIXTURE",
+  "acceptances": [
+    {"system": "control-center", "accepted": false, "detail": "Local tests are green; external signed acceptance is pending"},
+    {"system": "continuity-os", "accepted": false, "detail": "Contract compatibility is not production authority evidence"},
+    {"system": "trading-arena", "accepted": false, "detail": "Proposal-only risk/effect tests do not authorize venue execution"}
+  ]
+}

@@ -1,0 +1,33 @@
+name: maworld-rust-verification
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: maworld-rust-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    container:
+      image: rust:1.97.1-bookworm@sha256:389c1ae98c20fbcadca68a685482749267cec3c90893ae4671c5a37cc894c416
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - name: Rust formatting
+        run: cargo fmt --all -- --check
+      - name: Rust workspace tests
+        run: |
+          unset MAWORLD_KF_TRUST_REGISTRY_SHA256
+          cargo test --workspace --locked
+      - name: Rust clippy (warnings denied)
+        run: |
+          unset MAWORLD_KF_TRUST_REGISTRY_SHA256
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+      - name: RustSec dependency audit (pinned tool and database)
+        run: sh tools/audit_rust.sh Cargo.lock

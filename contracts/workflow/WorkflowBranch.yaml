@@ -1,0 +1,18 @@
+WorkflowBranch:
+  branch_id: string
+  parent_branch_id: string|null
+  fork_checkpoint_id: string|null
+  workflow_id: string
+  head_checkpoint_id: string|null
+  event_history_cursor: int64
+  state_hash: string
+  policy_version: string
+  schema_version: string
+  code_version: string
+  model_binding: string
+  prompt_version: string
+  configuration_hash: string
+  creator: string
+  reason: string
+  created_at: timestamp
+  status: enum[ACTIVE, SUPERSEDED, ABANDONED, INVALID_FOR_PROMOTION, PROMOTED]

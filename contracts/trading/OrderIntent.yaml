@@ -1,0 +1,12 @@
+# D5: твёрдое намерение после RiskService ALLOW. Только fixed-point.
+OrderIntent:
+  schema_version: "1.0"
+  client_order_id: uuid_v7      # cloid (Hyperliquid) / newClientOrderId (Binance TH)
+  instrument_id: string
+  side: enum[BUY, SELL]
+  order_type: enum[MARKET, LIMIT, STOP_MARKET, TRAILING_STOP]
+  time_in_force: enum[GTC, IOC, FOK]
+  quantity_fixed: int64         # scaled by instrument precision
+  price_fixed: int64            # 0 для MARKET
+  reduce_only: boolean
+  post_only: boolean

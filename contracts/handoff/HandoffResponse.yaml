@@ -1,0 +1,8 @@
+HandoffResponse:
+  handoff_id: string
+  target_agent_id: string
+  status: enum[ACCEPTED, REJECTED_CAPABILITY_MISMATCH, REJECTED_POLICY, REJECTED_EXPIRED, NEEDS_MORE_EVIDENCE, NEEDS_HUMAN_APPROVAL, COMPLETED, FAILED]
+  requested_additional_artifacts: [string]
+  result_artifact_references: [string]
+  decision_note: string
+  responded_at: timestamp

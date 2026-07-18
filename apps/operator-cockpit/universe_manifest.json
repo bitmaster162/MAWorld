@@ -1,0 +1,531 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "universe-manifest-v1-reference",
+  "generatedAt": "2026-07-10T23:51:26.044640+00:00",
+  "brand": {
+    "productName": "BitEvo Universe",
+    "hubName": "Universe Hub",
+    "controlPlaneName": "Control Center",
+    "defaultRoute": "/universe"
+  },
+  "globalMode": {
+    "operationalStatus": "degraded",
+    "executionMode": "read_only",
+    "reason": "ContinuityOS control plane remains under repair; Hub V1 is navigation, observation and proposal-first."
+  },
+  "routes": {
+    "hub": "/universe",
+    "systemOverview": "/systems/:systemSlug",
+    "systemCockpit": "/systems/:systemSlug/control",
+    "systemModule": "/systems/:systemSlug/control/:moduleSlug",
+    "workOrders": "/work-orders",
+    "evidence": "/evidence",
+    "conflicts": "/conflicts",
+    "timeline": "/timeline",
+    "sources": "/sources",
+    "alerts": "/alerts",
+    "settings": "/settings"
+  },
+  "systems": [
+    {
+      "schemaVersion": "1.0",
+      "systemId": "sys-control-center",
+      "slug": "control-center",
+      "displayName": "Control Center",
+      "shortDescription": "Global truth, provenance, source ingestion, evidence, conflicts, work orders and Universe navigation.",
+      "category": "governance",
+      "maturity": "active-development",
+      "status": "degraded",
+      "truthStatus": "evidenced",
+      "executionMode": "read_only",
+      "navigation": {
+        "mode": "internal",
+        "overviewPath": "/systems/control-center",
+        "cockpitPath": "/systems/control-center/control",
+        "defaultClickTarget": "cockpit"
+      },
+      "modules": [
+        "universe-hub",
+        "system-registry",
+        "source-vault",
+        "ingestion",
+        "claim-evidence-graph",
+        "conflict-resolution",
+        "master-timeline",
+        "open-loops",
+        "work-order-router",
+        "secrets-quarantine"
+      ],
+      "tags": [
+        "truth",
+        "provenance",
+        "governance"
+      ],
+      "provenance": {
+        "source": "continuityos-v10-cowork-v3-architecture-synthesis",
+        "evidenceRef": "UNIVERSE_HUB_MASTER_ARCHITECTURE_V1.md",
+        "updatedAt": "2026-07-10T23:51:26.044662+00:00"
+      }
+    },
+    {
+      "schemaVersion": "1.0",
+      "systemId": "sys-continuity-os",
+      "slug": "continuity-os",
+      "displayName": "ContinuityOS",
+      "shortDescription": "Runtime governance, canon, authority, mutation, checkpoints, proof, recovery and failover.",
+      "category": "governance-runtime",
+      "maturity": "experimental-runtime",
+      "status": "degraded",
+      "truthStatus": "verified",
+      "executionMode": "halted",
+      "navigation": {
+        "mode": "internal",
+        "overviewPath": "/systems/continuity-os",
+        "cockpitPath": "/systems/continuity-os/control",
+        "defaultClickTarget": "cockpit"
+      },
+      "modules": [
+        "truth-kernel",
+        "authority-gate",
+        "mutation-plane",
+        "canonical-state",
+        "checkpoints",
+        "proof-ledger",
+        "recovery",
+        "fleet-sync",
+        "zero-trust",
+        "failover"
+      ],
+      "tags": [
+        "canon",
+        "authority",
+        "proof"
+      ],
+      "provenance": {
+        "source": "continuityos-v10-cowork-v3-architecture-synthesis",
+        "evidenceRef": "UNIVERSE_HUB_MASTER_ARCHITECTURE_V1.md",
+        "updatedAt": "2026-07-10T23:51:26.044670+00:00"
+      }
+    },
+    {
+      "schemaVersion": "1.0",
+      "systemId": "sys-mind",
+      "slug": "mind",
+      "displayName": "MIND",
+      "shortDescription": "Cognitive core: sensing, memory, dialectic, procedural learning, authority passports and Brain link.",
+      "category": "cognition",
+      "maturity": "experimental-runtime",
+      "status": "degraded",
+      "truthStatus": "evidenced",
+      "executionMode": "read_only",
+      "navigation": {
+        "mode": "internal",
+        "overviewPath": "/systems/mind",
+        "cockpitPath": "/systems/mind/control",
+        "defaultClickTarget": "cockpit"
+      },
+      "modules": [
+        "senses",
+        "dialectic",
+        "memory",
+        "procedural-memory",
+        "authority-passport",
+        "loop-a",
+        "loop-b",
+        "loop-c",
+        "brain-link",
+        "resurrection"
+      ],
+      "tags": [
+        "cognition",
+        "memory",
+        "active-inference"
+      ],
+      "provenance": {
+        "source": "continuityos-v10-cowork-v3-architecture-synthesis",
+        "evidenceRef": "UNIVERSE_HUB_MASTER_ARCHITECTURE_V1.md",
+        "updatedAt": "2026-07-10T23:51:26.044675+00:00"
+      }
+    },
+    {
+      "schemaVersion": "1.0",
+      "systemId": "sys-reflex",
+      "slug": "reflex",
+      "displayName": "Reflex",
+      "shortDescription": "Proposal, review, arbitration and bounded self-modification layer.",
+      "category": "self-improvement",
+      "maturity": "experimental-runtime",
+      "status": "degraded",
+      "truthStatus": "evidenced",
+      "executionMode": "halted",
+      "navigation": {
+        "mode": "internal",
+        "overviewPath": "/systems/reflex",
+        "cockpitPath": "/systems/reflex/control",
+        "defaultClickTarget": "cockpit"
+      },
+      "modules": [
+        "arbiter",
+        "sovereign-guard",
+        "proposal-engine",
+        "sap-reviewer",
+        "self-modification",
+        "safety-wrappers",
+        "proposal-ledger"
+      ],
+      "tags": [
+        "proposals",
+        "safety",
+        "self-modification"
+      ],
+      "provenance": {
+        "source": "continuityos-v10-cowork-v3-architecture-synthesis",
+        "evidenceRef": "UNIVERSE_HUB_MASTER_ARCHITECTURE_V1.md",
+        "updatedAt": "2026-07-10T23:51:26.044678+00:00"
+      }
+    },
+    {
+      "schemaVersion": "1.0",
+      "systemId": "sys-pfi-brain",
+      "slug": "pfi-brain",
+      "displayName": "PFI / Brain / Fabric",
+      "shortDescription": "Frontier intelligence ingestion, shared memory, Brain bus, provenance, privacy and sessions.",
+      "category": "intelligence-memory",
+      "maturity": "experimental-runtime",
+      "status": "degraded",
+      "truthStatus": "evidenced",
+      "executionMode": "read_only",
+      "navigation": {
+        "mode": "internal",
+        "overviewPath": "/systems/pfi-brain",
+        "cockpitPath": "/systems/pfi-brain/control",
+        "defaultClickTarget": "cockpit"
+      },
+      "modules": [
+        "frontier-ingestion",
+        "brain-bus",
+        "fabric",
+        "evidence-tracker",
+        "privacy-acl",
+        "sessions-handoff",
+        "operator-corrections",
+        "scheduled-scouts",
+        "memory-tiers"
+      ],
+      "tags": [
+        "research",
+        "memory",
+        "fabric"
+      ],
+      "provenance": {
+        "source": "continuityos-v10-cowork-v3-architecture-synthesis",
+        "evidenceRef": "UNIVERSE_HUB_MASTER_ARCHITECTURE_V1.md",
+        "updatedAt": "2026-07-10T23:51:26.044681+00:00"
+      }
+    },
+    {
+      "schemaVersion": "1.0",
+      "systemId": "sys-trading-arena",
+      "slug": "trading-arena",
+      "displayName": "Trading / Arena",
+      "shortDescription": "Paper trading, phase gates, risk, market diagnostics, execution and Arena evidence.",
+      "category": "finance",
+      "maturity": "paper-stage",
+      "status": "halted",
+      "truthStatus": "evidenced",
+      "executionMode": "halted",
+      "navigation": {
+        "mode": "internal",
+        "overviewPath": "/systems/trading-arena",
+        "cockpitPath": "/systems/trading-arena/control",
+        "defaultClickTarget": "cockpit"
+      },
+      "modules": [
+        "phase-gate",
+        "pretrade-gate",
+        "paper-engine",
+        "unified-execution",
+        "arena",
+        "risk-engine",
+        "pnl-protection",
+        "telemetry",
+        "trade-evidence"
+      ],
+      "tags": [
+        "paper-trading",
+        "risk",
+        "arena"
+      ],
+      "provenance": {
+        "source": "continuityos-v10-cowork-v3-architecture-synthesis",
+        "evidenceRef": "UNIVERSE_HUB_MASTER_ARCHITECTURE_V1.md",
+        "updatedAt": "2026-07-10T23:51:26.044684+00:00"
+      }
+    },
+    {
+      "schemaVersion": "1.0",
+      "systemId": "sys-simos-pandora",
+      "slug": "simos-pandora",
+      "displayName": "Sim-OS / Pandora",
+      "shortDescription": "Simulation loops, world-state experiments, policy gating, rollback and evolution visualisation.",
+      "category": "simulation",
+      "maturity": "prototype",
+      "status": "degraded",
+      "truthStatus": "evidenced",
+      "executionMode": "isolated_only",
+      "navigation": {
+        "mode": "internal",
+        "overviewPath": "/systems/simos-pandora",
+        "cockpitPath": "/systems/simos-pandora/control",
+        "defaultClickTarget": "cockpit"
+      },
+      "modules": [
+        "simulation-loop",
+        "objective-engine",
+        "memory-plane",
+        "rollback",
+        "pandora-gate",
+        "policy-ledger",
+        "experiment-history",
+        "epoch-graph"
+      ],
+      "tags": [
+        "simulation",
+        "rollback",
+        "policy"
+      ],
+      "provenance": {
+        "source": "continuityos-v10-cowork-v3-architecture-synthesis",
+        "evidenceRef": "UNIVERSE_HUB_MASTER_ARCHITECTURE_V1.md",
+        "updatedAt": "2026-07-10T23:51:26.044686+00:00"
+      }
+    },
+    {
+      "schemaVersion": "1.0",
+      "systemId": "sys-forge-torture",
+      "slug": "forge-torture",
+      "displayName": "Forge / Torture / x402",
+      "shortDescription": "Artifact generation, validation, adversarial risk tests, payment protocol and settlement prototypes.",
+      "category": "artifact-market",
+      "maturity": "prototype",
+      "status": "planned",
+      "truthStatus": "contradicted",
+      "executionMode": "isolated_only",
+      "navigation": {
+        "mode": "internal",
+        "overviewPath": "/systems/forge-torture",
+        "cockpitPath": "/systems/forge-torture/control",
+        "defaultClickTarget": "cockpit"
+      },
+      "modules": [
+        "forge-api",
+        "judge",
+        "artifact-registry",
+        "torture-engine",
+        "payment-verifier",
+        "settlement",
+        "bazaar",
+        "quality-evidence"
+      ],
+      "tags": [
+        "artifacts",
+        "testing",
+        "payments"
+      ],
+      "provenance": {
+        "source": "continuityos-v10-cowork-v3-architecture-synthesis",
+        "evidenceRef": "UNIVERSE_HUB_MASTER_ARCHITECTURE_V1.md",
+        "updatedAt": "2026-07-10T23:51:26.044689+00:00"
+      }
+    },
+    {
+      "schemaVersion": "1.0",
+      "systemId": "sys-inner-circle",
+      "slug": "inner-circle",
+      "displayName": "Inner Circle",
+      "shortDescription": "Pricing, payments, subscriptions, entitlements, Telegram access and community operations.",
+      "category": "monetization",
+      "maturity": "experimental-product",
+      "status": "halted",
+      "truthStatus": "contradicted",
+      "executionMode": "halted",
+      "navigation": {
+        "mode": "internal",
+        "overviewPath": "/systems/inner-circle",
+        "cockpitPath": "/systems/inner-circle/control",
+        "defaultClickTarget": "cockpit"
+      },
+      "modules": [
+        "pricing-canon",
+        "payment-adapters",
+        "receipt-idempotency",
+        "entitlement-engine",
+        "access-control",
+        "telegram-membership",
+        "renewal-expiry",
+        "member-crm"
+      ],
+      "tags": [
+        "payments",
+        "entitlements",
+        "community"
+      ],
+      "provenance": {
+        "source": "continuityos-v10-cowork-v3-architecture-synthesis",
+        "evidenceRef": "UNIVERSE_HUB_MASTER_ARCHITECTURE_V1.md",
+        "updatedAt": "2026-07-10T23:51:26.044692+00:00"
+      }
+    },
+    {
+      "schemaVersion": "1.0",
+      "systemId": "sys-bitevo-platform",
+      "slug": "bitevo-platform",
+      "displayName": "BitEvo Platform",
+      "shortDescription": "Public product shell, sites, documentation, releases, guides and ecosystem presentation.",
+      "category": "product-shell",
+      "maturity": "active-development",
+      "status": "unknown",
+      "truthStatus": "claimed",
+      "executionMode": "read_only",
+      "navigation": {
+        "mode": "internal",
+        "overviewPath": "/systems/bitevo-platform",
+        "cockpitPath": "/systems/bitevo-platform/control",
+        "defaultClickTarget": "cockpit"
+      },
+      "modules": [
+        "public-sites",
+        "products",
+        "documentation",
+        "release-registry",
+        "content-library",
+        "brand-assets",
+        "deployment-status"
+      ],
+      "tags": [
+        "product",
+        "web",
+        "docs"
+      ],
+      "provenance": {
+        "source": "continuityos-v10-cowork-v3-architecture-synthesis",
+        "evidenceRef": "UNIVERSE_HUB_MASTER_ARCHITECTURE_V1.md",
+        "updatedAt": "2026-07-10T23:51:26.044695+00:00"
+      }
+    },
+    {
+      "schemaVersion": "1.0",
+      "systemId": "sys-knowledge-lab",
+      "slug": "knowledge-lab",
+      "displayName": "Knowledge Lab",
+      "shortDescription": "GPT, Gemini, Cowork, NotebookLM and research ingestion into a provenance-preserving knowledge graph.",
+      "category": "knowledge",
+      "maturity": "active-ingestion",
+      "status": "maintenance",
+      "truthStatus": "evidenced",
+      "executionMode": "read_only",
+      "navigation": {
+        "mode": "internal",
+        "overviewPath": "/systems/knowledge-lab",
+        "cockpitPath": "/systems/knowledge-lab/control",
+        "defaultClickTarget": "cockpit"
+      },
+      "modules": [
+        "gpt-adapter",
+        "gemini-adapter",
+        "cowork-adapter",
+        "notebooklm-adapter",
+        "research-adapter",
+        "deduplication",
+        "knowledge-graph",
+        "semantic-search",
+        "source-manifests"
+      ],
+      "tags": [
+        "archives",
+        "knowledge",
+        "research"
+      ],
+      "provenance": {
+        "source": "continuityos-v10-cowork-v3-architecture-synthesis",
+        "evidenceRef": "UNIVERSE_HUB_MASTER_ARCHITECTURE_V1.md",
+        "updatedAt": "2026-07-10T23:51:26.044698+00:00"
+      }
+    },
+    {
+      "schemaVersion": "1.0",
+      "systemId": "sys-executor-network",
+      "slug": "executor-network",
+      "displayName": "Executor Network",
+      "shortDescription": "Fable5, Codex and future executors operating through bounded work orders and evidence return bundles.",
+      "category": "execution",
+      "maturity": "active-development",
+      "status": "unknown",
+      "truthStatus": "evidenced",
+      "executionMode": "approval_required",
+      "navigation": {
+        "mode": "internal",
+        "overviewPath": "/systems/executor-network",
+        "cockpitPath": "/systems/executor-network/control",
+        "defaultClickTarget": "cockpit"
+      },
+      "modules": [
+        "fable5",
+        "codex",
+        "worktree-manager",
+        "work-order-parser",
+        "return-bundle-validator",
+        "ci-runner",
+        "deployment-gate",
+        "executor-capabilities"
+      ],
+      "tags": [
+        "agents",
+        "work-orders",
+        "execution"
+      ],
+      "provenance": {
+        "source": "continuityos-v10-cowork-v3-architecture-synthesis",
+        "evidenceRef": "UNIVERSE_HUB_MASTER_ARCHITECTURE_V1.md",
+        "updatedAt": "2026-07-10T23:51:26.044701+00:00"
+      }
+    },
+    {
+      "schemaVersion": "1.0",
+      "systemId": "sys-physical-ai-factory",
+      "slug": "physical-ai-factory",
+      "displayName": "Physical AI Factory",
+      "shortDescription": "Future Cosmos/world-model, active-inference and robotics control environment. Research concept only.",
+      "category": "future-research",
+      "maturity": "research-concept",
+      "status": "planned",
+      "truthStatus": "claimed",
+      "executionMode": "disabled",
+      "navigation": {
+        "mode": "disabled",
+        "overviewPath": "/systems/physical-ai-factory",
+        "cockpitPath": "/systems/physical-ai-factory/control",
+        "defaultClickTarget": "cockpit"
+      },
+      "modules": [
+        "cosmos-bridge",
+        "world-model",
+        "active-inference",
+        "robotics-gate",
+        "simulation",
+        "gpu-fabric",
+        "sensor-ingestion"
+      ],
+      "tags": [
+        "physical-ai",
+        "robotics",
+        "future"
+      ],
+      "provenance": {
+        "source": "continuityos-v10-cowork-v3-architecture-synthesis",
+        "evidenceRef": "UNIVERSE_HUB_MASTER_ARCHITECTURE_V1.md",
+        "updatedAt": "2026-07-10T23:51:26.044703+00:00"
+      }
+    }
+  ]
+}

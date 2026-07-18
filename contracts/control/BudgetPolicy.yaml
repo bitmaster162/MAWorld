@@ -1,0 +1,23 @@
+BudgetPolicy:
+  schema_version: "delta-2026-07"
+  policy_id: string
+  role: string
+  data_class: string
+  monthly_cap_usd: number
+  p0_reserve_usd: number
+  p1_reserve_usd: number
+  cache_policy:
+    openai_prompt_cache: boolean
+    anthropic_prompt_cache_ttl: string   # 5m (1.25x write) | 1h (2x write); reads 0.1x
+  batch_policy:
+    openai_batch_allowed: boolean        # -50%
+    executor_async_only: boolean
+  provider_order: {primary: string, secondary: string, tertiary: string}
+  provider_constraints:
+    openrouter_allowed: boolean          # только PUBLIC/INTERNAL
+    openrouter_zdr_required: boolean
+    direct_api_required: boolean         # оркестратор/супервизор — всегда direct
+  circuit_breakers:
+    hard_deny_above_cap: boolean
+    hold_when_reserve_crossed: boolean
+    supervisor_override_required: boolean

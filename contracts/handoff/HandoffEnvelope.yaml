@@ -1,0 +1,36 @@
+HandoffEnvelope:
+  schema_version: string
+  handoff_id: string
+  event_id: string
+  correlation_id: string
+  causation_id: string
+  trace_id: string
+  workflow_id: string
+  branch_id: string
+  task_id: string
+  source_agent_id: string
+  source_role: string
+  target_role: string
+  requested_capabilities: [string]
+  forbidden_capabilities: [string]
+  objective: string
+  acceptance_criteria: [string]
+  artifact_references:
+    - artifact_id: string
+      content_hash: string
+      media_type: string
+  evidence_references: [string]
+  relevant_decision_references: [string]
+  context_budget:
+    max_tokens: int32
+    max_artifacts: int32
+    mode: enum[ARTIFACT_POINTER_ONLY, MINIMAL_EVIDENCE_BUNDLE, STRUCTURED_TASK_SUMMARY, SELECTED_EXCERPTS, FULL_HISTORY]
+  data_class: enum[PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED]
+  priority: enum[LOW, NORMAL, HIGH, URGENT]
+  risk_class: enum[LOW, MEDIUM, HIGH, CRITICAL]
+  expires_at: timestamp
+  idempotency_key: string
+  payload_hash: string
+  workflow_signature: string
+  policy_decision_id: string
+# Default mode = ARTIFACT_POINTER_ONLY + summary. Конверт НЕ переносит полномочия (ADR-D2).

@@ -1,0 +1,23 @@
+MemoryMutationProposal:
+  proposal_id: string
+  memory_id: string|null
+  project_id: string
+  scope: enum[PINNED_CORE, WORKING, ARCHIVAL]
+  data_class: enum[PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED]
+  source: string
+  provenance: [string]
+  creator: string
+  confidence: float
+  validation_state: enum[PROPOSED, VALIDATED, APPROVED, ACTIVE, SUPERSEDED, ARCHIVED, QUARANTINED]
+  content_hash: string
+  created_at: timestamp
+  expires_at: timestamp|null
+  supersedes: [string]
+  policy_version: string
+  access_control:
+    readers: [string]
+    writers: [string]
+    project_boundary: string
+  mutation_type: enum[WRITE, UPDATE, SUPERSEDE, PROMOTION_REQUEST]
+  payload: object
+# Агенты НЕ самопромотируют спекуляции в ACTIVE (ADR-D3).

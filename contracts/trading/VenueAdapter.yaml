@@ -1,0 +1,13 @@
+# Интерфейс любого биржевого адаптера (D5). Реализации: hyperliquid (primary), binance_th (secondary).
+VenueAdapter:
+  methods:
+    - name: ensure_instruments_initialized_async
+      returns: Result<void>       # trading rules, tick/lot sizes через REST
+    - name: refresh_account_state
+      returns: AccountState       # crash recovery: балансы+позиции
+    - name: submit_order
+      inputs: [intent: OrderIntent]
+      returns: Result<ClientOrderId>   # enforce UUIDv7
+    - name: cancel_order
+      inputs: [client_order_id: uuid_v7]
+      returns: Result<void>
