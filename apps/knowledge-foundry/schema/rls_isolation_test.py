@@ -21,6 +21,7 @@ MIGRATIONS = (
     HERE / "001_intake_core_v1_1.sql",
     HERE / "002_rls_roles.sql",
     HERE / "003_atomic_intake.sql",
+    HERE / "004_authority_grants.sql",
 )
 
 
@@ -92,10 +93,23 @@ def main() -> int:
             raise RuntimeError("destructive acceptance requires a disposable PostgreSQL cluster")
         # Admin-only reset/seed path. Never point this test at a shared database.
         cursor.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
+        cursor.execute("DROP ROLE IF EXISTS kf_rls_probe;")
         cursor.execute("DROP ROLE IF EXISTS kf_ingest_owner;")
         cursor.execute("DROP ROLE IF EXISTS kf_runtime;")
         for migration in MIGRATIONS:
             cursor.execute(_migration_text(migration))
+        cursor.execute(
+            "CREATE ROLE kf_rls_probe NOLOGIN NOSUPERUSER NOCREATEDB "
+            "NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT"
+        )
+        cursor.execute("GRANT USAGE ON SCHEMA public TO kf_rls_probe")
+        cursor.execute(
+            "GRANT SELECT ON raw_blob, artifact_occurrence, artifact_version "
+            "TO kf_rls_probe"
+        )
+        cursor.execute(
+            "GRANT EXECUTE ON FUNCTION public.kf_allowed_projects() TO kf_rls_probe"
+        )
         project_a, project_b = uuid.uuid4(), uuid.uuid4()
         cursor.execute(
             "INSERT INTO project(project_id,slug) VALUES(%s,'proj-A'),(%s,'proj-B')",
@@ -123,7 +137,7 @@ def main() -> int:
 
         def scoped(query: str, project_ids: str | None):
             try:
-                cursor.execute("SET LOCAL ROLE kf_runtime")
+                cursor.execute("SET LOCAL ROLE kf_rls_probe")
                 if project_ids is not None:
                     cursor.execute(
                         "SELECT set_config('app.project_ids', %s, true)",
@@ -138,6 +152,15 @@ def main() -> int:
                 return None, error
 
         results: dict[str, bool] = {}
+        try:
+            cursor.execute("SET LOCAL ROLE kf_runtime")
+            cursor.execute("SELECT count(*) FROM artifact_occurrence")
+            runtime_raw_denied = False
+        except Exception:
+            runtime_raw_denied = True
+        finally:
+            connection.rollback()
+        results["production runtime has no raw SELECT surface"] = runtime_raw_denied
         occurrences = (
             "SELECT count(*), coalesce(string_agg(source_native_id,','),'') "
             "FROM artifact_occurrence"

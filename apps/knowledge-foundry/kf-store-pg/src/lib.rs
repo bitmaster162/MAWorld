@@ -1,41 +1,40 @@
 //! Tenant-scoped PostgreSQL intake boundary for Knowledge Foundry.
 //!
-//! Every domain query owns a transaction and installs one project UUID with a bound,
-//! transaction-local `set_config` call. Blob deduplication, occurrence identity, and version
-//! lineage are exposed only as one atomic operation backed by the narrow
-//! `public.kf_ingest_observation` database function. The pool and transaction never escape this
-//! crate.
-//!
-//! `project_id` remains a scope claim, not authentication. It must come from the separately
-//! verified authority boundary; possession of runtime database credentials is not tenant
-//! authority. Until that wiring and the disposable DB acceptance exist, this crate remains HOLD.
+//! A separately admitted registrar converts a consumed, signed `kf-intake` authority into an
+//! opaque one-time database grant. Runtime credentials cannot create grants, select raw tenant
+//! tables, or choose a project GUC. The SECURITY DEFINER boundary locks the grant, derives its
+//! project and exact source/content binding server-side, and consumes it atomically with intake.
 //!
 //! This boundary still requires the ignored disposable-database acceptance test before release;
 //! local unit tests only prove validation and the shape of the SQL contract.
 use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
+use kf_intake::authority::{self, StoredIngestAuthority};
 use sqlx_core::{
     pool::{Pool, PoolOptions},
     query::query,
     row::Row,
 };
 use sqlx_postgres::{PgRow, Postgres};
+use std::sync::{Arc, OnceLock};
+use tokio::sync::Semaphore;
 use uuid::Uuid;
 
 const MAX_RAW_BLOB_BYTES: i64 = 256 * 1024 * 1024;
 const MAX_SOURCE_SYSTEM_BYTES: usize = 128;
 const MAX_SOURCE_NATIVE_BYTES: usize = 4096;
-const MAX_SOURCE_REVISION_BYTES: usize = 4096;
-const MAX_STORAGE_URI_BYTES: usize = 4096;
+const MAX_CONCURRENT_CAS_REVALIDATIONS: usize = 2;
 
-// The setting name is a constant and the value is always a bound parameter. `true` makes the
-// setting transaction-local, so a pooled connection cannot retain tenant state after commit or
-// rollback.
-const SET_LOCAL_PROJECT_SQL: &str =
-    "SELECT pg_catalog.set_config('app.project_ids', $1, true) AS project_context,
-            pg_catalog.set_config('lock_timeout', '5s', true) AS lock_timeout,
-            pg_catalog.set_config('statement_timeout', '30s', true) AS statement_timeout";
+fn cas_revalidation_semaphore() -> Arc<Semaphore> {
+    static SEMAPHORE: OnceLock<Arc<Semaphore>> = OnceLock::new();
+    Arc::clone(SEMAPHORE.get_or_init(|| Arc::new(Semaphore::new(MAX_CONCURRENT_CAS_REVALIDATIONS))))
+}
+
 const SET_LOCAL_RUNTIME_ROLE_SQL: &str = "SET LOCAL ROLE kf_runtime";
+const SET_LOCAL_REGISTRAR_ROLE_SQL: &str = "SET LOCAL ROLE kf_authority_registrar";
+const SET_LOCAL_TIMEOUTS_SQL: &str = "SELECT
+    pg_catalog.set_config('lock_timeout', '5s', true),
+    pg_catalog.set_config('statement_timeout', '30s', true)";
 const VERIFY_RUNTIME_ROLE_SQL: &str = "SELECT login.rolname AS login_name,
             CURRENT_USER::text AS current_name,
             SESSION_USER::text AS session_name,
@@ -78,6 +77,14 @@ const VERIFY_RUNTIME_ROLE_SQL: &str = "SELECT login.rolname AS login_name,
                  WHERE namespace.nspname = 'public'
                    AND relation.relowner = runtime.oid
             ) AS runtime_owns_public_relations,
+            EXISTS (
+                SELECT 1
+                  FROM pg_catalog.pg_proc AS function
+                  JOIN pg_catalog.pg_namespace AS namespace
+                    ON namespace.oid = function.pronamespace
+                 WHERE namespace.nspname = 'public'
+                   AND function.proowner = runtime.oid
+            ) AS runtime_owns_public_functions,
             EXISTS (
                 SELECT 1
                   FROM pg_catalog.pg_auth_members AS membership
@@ -133,6 +140,14 @@ const VERIFY_RUNTIME_ROLE_SQL: &str = "SELECT login.rolname AS login_name,
             ) AS login_owns_public_relations,
             EXISTS (
                 SELECT 1
+                  FROM pg_catalog.pg_proc AS function
+                  JOIN pg_catalog.pg_namespace AS namespace
+                    ON namespace.oid = function.pronamespace
+                 WHERE namespace.nspname = 'public'
+                   AND function.proowner = login.oid
+            ) AS login_owns_public_functions,
+            EXISTS (
+                SELECT 1
                   FROM pg_catalog.pg_class AS relation
                   JOIN pg_catalog.pg_namespace AS namespace
                     ON namespace.oid = relation.relnamespace
@@ -172,21 +187,7 @@ const VERIFY_RUNTIME_ROLE_SQL: &str = "SELECT login.rolname AS login_name,
                   ) AS relation_acl
                  WHERE namespace.nspname = 'public'
                    AND relation.relkind IN ('r', 'p', 'v', 'm', 'f')
-                   AND (
-                       relation_acl.grantee = 0
-                       OR (
-                           relation_acl.grantee = runtime.oid
-                           AND (
-                               relation_acl.privilege_type <> 'SELECT'
-                               OR relation_acl.is_grantable
-                               OR relation.relname NOT IN (
-                                   'raw_blob', 'artifact_occurrence', 'artifact_version',
-                                   'logical_document', 'ingestion_run', 'event_ledger',
-                                   'project', 'embedding_profile'
-                               )
-                           )
-                       )
-                   )
+                    AND relation_acl.grantee IN (runtime.oid, 0)
             ) AS runtime_has_forbidden_relation_acl,
             EXISTS (
                 SELECT 1
@@ -203,6 +204,59 @@ const VERIFY_RUNTIME_ROLE_SQL: &str = "SELECT login.rolname AS login_name,
                    AND relation.relkind = 'S'
                    AND sequence_acl.grantee IN (login.oid, runtime.oid, 0)
             ) AS unexpected_sequence_acl,
+            EXISTS (
+                SELECT 1
+                  FROM pg_catalog.pg_proc AS function
+                  JOIN pg_catalog.pg_namespace AS namespace
+                    ON namespace.oid = function.pronamespace
+                  CROSS JOIN LATERAL pg_catalog.aclexplode(
+                      COALESCE(
+                          function.proacl,
+                          pg_catalog.acldefault('f', function.proowner)
+                      )
+                  ) AS function_acl
+                 WHERE namespace.nspname = 'public'
+                   AND function_acl.grantee IN (login.oid, 0)
+            ) AS login_or_public_has_function_acl,
+            NOT EXISTS (
+                SELECT 1
+                  FROM pg_catalog.pg_proc AS function
+                  JOIN pg_catalog.pg_namespace AS namespace
+                    ON namespace.oid = function.pronamespace
+                  CROSS JOIN LATERAL pg_catalog.aclexplode(
+                      COALESCE(
+                          function.proacl,
+                          pg_catalog.acldefault('f', function.proowner)
+                      )
+                  ) AS function_acl
+                 WHERE namespace.nspname = 'public'
+                   AND function.oid = pg_catalog.to_regprocedure(
+                       'public.kf_ingest_authorized(uuid,uuid)'
+                   )
+                   AND function_acl.grantee = runtime.oid
+                   AND function_acl.privilege_type = 'EXECUTE'
+                   AND NOT function_acl.is_grantable
+            ) OR EXISTS (
+                SELECT 1
+                  FROM pg_catalog.pg_proc AS function
+                  JOIN pg_catalog.pg_namespace AS namespace
+                    ON namespace.oid = function.pronamespace
+                  CROSS JOIN LATERAL pg_catalog.aclexplode(
+                      COALESCE(
+                          function.proacl,
+                          pg_catalog.acldefault('f', function.proowner)
+                      )
+                  ) AS function_acl
+                 WHERE namespace.nspname = 'public'
+                   AND function_acl.grantee = runtime.oid
+                   AND (
+                       function.oid IS DISTINCT FROM pg_catalog.to_regprocedure(
+                           'public.kf_ingest_authorized(uuid,uuid)'
+                       )
+                       OR function_acl.privilege_type <> 'EXECUTE'
+                       OR function_acl.is_grantable
+                   )
+            ) AS runtime_function_acl_drift,
             EXISTS (
                 SELECT 1
                   FROM (VALUES
@@ -240,9 +294,158 @@ const VERIFY_DISPOSABLE_ADMIN_SQL: &str = "SELECT role.rolname AS login_name,
             ) AS other_user_databases
        FROM pg_catalog.pg_roles AS role
       WHERE role.rolname = SESSION_USER";
-const INGEST_SQL: &str = "SELECT blob_id, occurrence_id, version_id, parent_version_id,
-            blob_created, occurrence_created, version_created
-       FROM public.kf_ingest_observation($1,$2,$3,$4,$5,$6,$7,$8,$9)";
+const VERIFY_REGISTRAR_ROLE_SQL: &str = "SELECT login.rolname AS login_name,
+            CURRENT_USER::text AS current_name,
+            SESSION_USER::text AS session_name,
+            login.rolcanlogin AS login_can_login,
+            login.rolsuper AS login_super,
+            login.rolbypassrls AS login_bypassrls,
+            login.rolinherit AS login_inherit,
+            login.rolcreatedb AS login_createdb,
+            login.rolcreaterole AS login_createrole,
+            login.rolreplication AS login_replication,
+            registrar.rolcanlogin AS registrar_can_login,
+            registrar.rolsuper AS registrar_super,
+            registrar.rolbypassrls AS registrar_bypassrls,
+            registrar.rolinherit AS registrar_inherit,
+            registrar.rolcreatedb AS registrar_createdb,
+            registrar.rolcreaterole AS registrar_createrole,
+            registrar.rolreplication AS registrar_replication,
+            EXISTS (
+                SELECT 1 FROM pg_catalog.pg_auth_members AS membership
+                 WHERE membership.member = login.oid
+                   AND membership.roleid = registrar.oid
+                   AND NOT membership.admin_option
+                   AND NOT membership.inherit_option
+                   AND membership.set_option
+            ) AS registrar_member,
+            EXISTS (
+                SELECT 1 FROM pg_catalog.pg_auth_members AS membership
+                 WHERE membership.member = login.oid
+                   AND membership.roleid <> registrar.oid
+            ) AS login_has_other_memberships,
+            EXISTS (
+                SELECT 1 FROM pg_catalog.pg_auth_members AS membership
+                 WHERE membership.member = registrar.oid
+            ) AS registrar_has_memberships,
+            pg_catalog.has_schema_privilege(login.oid, 'public', 'CREATE')
+                AS login_can_create_public,
+            pg_catalog.has_database_privilege(
+                login.oid, pg_catalog.current_database(), 'CREATE'
+            ) AS login_can_create_database_objects,
+            pg_catalog.has_schema_privilege(registrar.oid, 'public', 'CREATE')
+                AS registrar_can_create_public,
+            pg_catalog.has_database_privilege(
+                registrar.oid, pg_catalog.current_database(), 'CREATE'
+            ) AS registrar_can_create_database_objects,
+            EXISTS (
+                SELECT 1 FROM pg_catalog.pg_database AS database
+                 WHERE database.datname = pg_catalog.current_database()
+                   AND database.datdba IN (login.oid, registrar.oid)
+            ) AS authority_role_owns_database,
+            EXISTS (
+                SELECT 1 FROM pg_catalog.pg_namespace AS namespace
+                 WHERE namespace.nspname = 'public'
+                   AND namespace.nspowner IN (login.oid, registrar.oid)
+            ) AS authority_role_owns_public_schema,
+            EXISTS (
+                SELECT 1
+                  FROM pg_catalog.pg_class AS relation
+                  JOIN pg_catalog.pg_namespace AS namespace
+                    ON namespace.oid = relation.relnamespace
+                 WHERE namespace.nspname = 'public'
+                   AND relation.relowner IN (login.oid, registrar.oid)
+            ) OR EXISTS (
+                SELECT 1
+                  FROM pg_catalog.pg_proc AS function
+                  JOIN pg_catalog.pg_namespace AS namespace
+                    ON namespace.oid = function.pronamespace
+                 WHERE namespace.nspname = 'public'
+                   AND function.proowner IN (login.oid, registrar.oid)
+            ) AS authority_role_owns_public_objects,
+            EXISTS (
+                SELECT 1
+                  FROM pg_catalog.pg_class AS relation
+                  JOIN pg_catalog.pg_namespace AS namespace
+                    ON namespace.oid = relation.relnamespace
+                  CROSS JOIN LATERAL pg_catalog.aclexplode(
+                    COALESCE(
+                      relation.relacl,
+                      pg_catalog.acldefault(
+                        CASE WHEN relation.relkind = 'S'
+                          THEN 's'::\"char\" ELSE 'r'::\"char\"
+                        END,
+                        relation.relowner
+                      )
+                    )
+                  ) AS relation_acl
+                 WHERE namespace.nspname = 'public'
+                   AND relation.relkind IN ('r', 'p', 'S', 'v', 'm', 'f')
+                   AND relation_acl.grantee IN (login.oid, registrar.oid, 0)
+            ) AS unexpected_authority_relation_acl,
+            EXISTS (
+                SELECT 1
+                  FROM pg_catalog.pg_attribute AS attribute
+                  JOIN pg_catalog.pg_class AS relation ON relation.oid = attribute.attrelid
+                  JOIN pg_catalog.pg_namespace AS namespace
+                    ON namespace.oid = relation.relnamespace
+                  CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS column_acl
+                 WHERE namespace.nspname = 'public'
+                   AND attribute.attnum > 0
+                   AND NOT attribute.attisdropped
+                   AND column_acl.grantee IN (login.oid, registrar.oid, 0)
+            ) AS unexpected_authority_column_acl,
+            EXISTS (
+                SELECT 1
+                  FROM pg_catalog.pg_proc AS function
+                  JOIN pg_catalog.pg_namespace AS namespace
+                    ON namespace.oid = function.pronamespace
+                  CROSS JOIN LATERAL pg_catalog.aclexplode(
+                    COALESCE(function.proacl, pg_catalog.acldefault('f', function.proowner))
+                  ) AS function_acl
+                 WHERE namespace.nspname = 'public'
+                   AND function_acl.grantee IN (login.oid, 0)
+            ) AS login_or_public_has_function_acl,
+            NOT EXISTS (
+                SELECT 1
+                  FROM pg_catalog.pg_proc AS function
+                  JOIN pg_catalog.pg_namespace AS namespace
+                    ON namespace.oid = function.pronamespace
+                  CROSS JOIN LATERAL pg_catalog.aclexplode(
+                    COALESCE(function.proacl, pg_catalog.acldefault('f', function.proowner))
+                  ) AS function_acl
+                 WHERE namespace.nspname = 'public'
+                   AND function.oid = pg_catalog.to_regprocedure(
+                     'public.kf_register_ingest_authority_grant(uuid,uuid,text,text,text,uuid,text,text,text,text,bigint,text,text,bigint,bigint)'
+                   )
+                   AND function_acl.grantee = registrar.oid
+                   AND function_acl.privilege_type = 'EXECUTE'
+                   AND NOT function_acl.is_grantable
+            ) OR EXISTS (
+                SELECT 1
+                  FROM pg_catalog.pg_proc AS function
+                  JOIN pg_catalog.pg_namespace AS namespace
+                    ON namespace.oid = function.pronamespace
+                  CROSS JOIN LATERAL pg_catalog.aclexplode(
+                    COALESCE(function.proacl, pg_catalog.acldefault('f', function.proowner))
+                  ) AS function_acl
+                 WHERE namespace.nspname = 'public'
+                   AND function_acl.grantee = registrar.oid
+                   AND (
+                     function.oid IS DISTINCT FROM pg_catalog.to_regprocedure(
+                       'public.kf_register_ingest_authority_grant(uuid,uuid,text,text,text,uuid,text,text,text,text,bigint,text,text,bigint,bigint)'
+                     )
+                     OR function_acl.privilege_type <> 'EXECUTE'
+                     OR function_acl.is_grantable
+                   )
+            ) AS registrar_function_acl_drift
+       FROM pg_catalog.pg_roles AS login
+       JOIN pg_catalog.pg_roles AS registrar ON registrar.rolname = 'kf_authority_registrar'
+      WHERE login.rolname = SESSION_USER";
+const REGISTER_GRANT_SQL: &str = "SELECT public.kf_register_ingest_authority_grant(
+            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) AS grant_id";
+const INGEST_SQL: &str = "SELECT occurrence_id, version_id, parent_version_id
+       FROM public.kf_ingest_authorized($1,$2)";
 
 fn disposable_admin_row_is_safe(
     verification: &PgRow,
@@ -293,6 +496,7 @@ fn runtime_role_row_is_safe(role: &PgRow) -> std::result::Result<(bool, String),
     let runtime_owns_database: bool = role.try_get("runtime_owns_database")?;
     let runtime_owns_public_schema: bool = role.try_get("runtime_owns_public_schema")?;
     let runtime_owns_public_relations: bool = role.try_get("runtime_owns_public_relations")?;
+    let runtime_owns_public_functions: bool = role.try_get("runtime_owns_public_functions")?;
     let runtime_member: bool = role.try_get("runtime_member")?;
     let login_has_other_memberships: bool = role.try_get("login_has_other_memberships")?;
     let runtime_has_other_memberships: bool = role.try_get("runtime_has_other_memberships")?;
@@ -302,11 +506,15 @@ fn runtime_role_row_is_safe(role: &PgRow) -> std::result::Result<(bool, String),
     let login_owns_database: bool = role.try_get("login_owns_database")?;
     let login_owns_public_schema: bool = role.try_get("login_owns_public_schema")?;
     let login_owns_public_relations: bool = role.try_get("login_owns_public_relations")?;
+    let login_owns_public_functions: bool = role.try_get("login_owns_public_functions")?;
     let login_has_direct_relation_acl: bool = role.try_get("login_has_direct_relation_acl")?;
     let unexpected_column_acl: bool = role.try_get("unexpected_column_acl")?;
     let runtime_has_forbidden_relation_acl: bool =
         role.try_get("runtime_has_forbidden_relation_acl")?;
     let unexpected_sequence_acl: bool = role.try_get("unexpected_sequence_acl")?;
+    let login_or_public_has_function_acl: bool =
+        role.try_get("login_or_public_has_function_acl")?;
+    let runtime_function_acl_drift: bool = role.try_get("runtime_function_acl_drift")?;
     let scoped_rls_drift: bool = role.try_get("scoped_rls_drift")?;
     let safe = current_name == session_name
         && login_can_login
@@ -330,79 +538,238 @@ fn runtime_role_row_is_safe(role: &PgRow) -> std::result::Result<(bool, String),
         && !runtime_owns_database
         && !runtime_owns_public_schema
         && !runtime_owns_public_relations
+        && !runtime_owns_public_functions
         && !login_has_other_memberships
         && !login_can_create_public
         && !login_can_create_database_objects
         && !login_owns_database
         && !login_owns_public_schema
         && !login_owns_public_relations
+        && !login_owns_public_functions
         && !login_has_direct_relation_acl
         && !unexpected_column_acl
         && !runtime_has_forbidden_relation_acl
         && !unexpected_sequence_acl
+        && !login_or_public_has_function_acl
+        && !runtime_function_acl_drift
         && !scoped_rls_drift;
     Ok((safe, role_name))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RawBlob {
-    pub blob_id: Uuid,
-    pub sha256: String,
-    pub byte_size: i64,
-    pub storage_uri: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Occurrence {
-    pub occurrence_id: Uuid,
-    pub project_id: Uuid,
-    pub source_system_id: String,
-    pub source_native_id: String,
-    pub blob_id: Uuid,
-}
-
-/// Complete input for the one supported intake write boundary.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IngestObservation {
-    pub occurrence_id: Uuid,
-    pub version_id: Uuid,
-    pub project_id: Uuid,
-    pub source_system_id: String,
-    pub source_native_id: String,
-    pub source_revision_key: String,
-    pub sha256: String,
-    pub byte_size: i64,
-    pub storage_uri: String,
+fn registrar_role_row_is_safe(
+    role: &PgRow,
+) -> std::result::Result<(bool, String), sqlx_core::Error> {
+    let role_name: String = role.try_get("login_name")?;
+    let current_name: String = role.try_get("current_name")?;
+    let session_name: String = role.try_get("session_name")?;
+    let login_can_login: bool = role.try_get("login_can_login")?;
+    let login_super: bool = role.try_get("login_super")?;
+    let login_bypassrls: bool = role.try_get("login_bypassrls")?;
+    let login_inherit: bool = role.try_get("login_inherit")?;
+    let login_createdb: bool = role.try_get("login_createdb")?;
+    let login_createrole: bool = role.try_get("login_createrole")?;
+    let login_replication: bool = role.try_get("login_replication")?;
+    let registrar_can_login: bool = role.try_get("registrar_can_login")?;
+    let registrar_super: bool = role.try_get("registrar_super")?;
+    let registrar_bypassrls: bool = role.try_get("registrar_bypassrls")?;
+    let registrar_inherit: bool = role.try_get("registrar_inherit")?;
+    let registrar_createdb: bool = role.try_get("registrar_createdb")?;
+    let registrar_createrole: bool = role.try_get("registrar_createrole")?;
+    let registrar_replication: bool = role.try_get("registrar_replication")?;
+    let registrar_member: bool = role.try_get("registrar_member")?;
+    let login_has_other_memberships: bool = role.try_get("login_has_other_memberships")?;
+    let registrar_has_memberships: bool = role.try_get("registrar_has_memberships")?;
+    let login_can_create_public: bool = role.try_get("login_can_create_public")?;
+    let login_can_create_database_objects: bool =
+        role.try_get("login_can_create_database_objects")?;
+    let registrar_can_create_public: bool = role.try_get("registrar_can_create_public")?;
+    let registrar_can_create_database_objects: bool =
+        role.try_get("registrar_can_create_database_objects")?;
+    let authority_role_owns_database: bool = role.try_get("authority_role_owns_database")?;
+    let authority_role_owns_public_schema: bool =
+        role.try_get("authority_role_owns_public_schema")?;
+    let authority_role_owns_public_objects: bool =
+        role.try_get("authority_role_owns_public_objects")?;
+    let unexpected_authority_relation_acl: bool =
+        role.try_get("unexpected_authority_relation_acl")?;
+    let unexpected_authority_column_acl: bool = role.try_get("unexpected_authority_column_acl")?;
+    let login_or_public_has_function_acl: bool =
+        role.try_get("login_or_public_has_function_acl")?;
+    let registrar_function_acl_drift: bool = role.try_get("registrar_function_acl_drift")?;
+    let safe = current_name == session_name
+        && login_can_login
+        && !login_super
+        && !login_bypassrls
+        && !login_inherit
+        && !login_createdb
+        && !login_createrole
+        && !login_replication
+        && registrar_member
+        && !login_has_other_memberships
+        && !registrar_has_memberships
+        && !registrar_can_login
+        && !registrar_super
+        && !registrar_bypassrls
+        && !registrar_inherit
+        && !registrar_createdb
+        && !registrar_createrole
+        && !registrar_replication
+        && !login_can_create_public
+        && !login_can_create_database_objects
+        && !registrar_can_create_public
+        && !registrar_can_create_database_objects
+        && !authority_role_owns_database
+        && !authority_role_owns_public_schema
+        && !authority_role_owns_public_objects
+        && !unexpected_authority_relation_acl
+        && !unexpected_authority_column_acl
+        && !login_or_public_has_function_acl
+        && !registrar_function_acl_drift;
+    Ok((safe, role_name))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IngestOutcome {
-    pub blob_id: Uuid,
     pub occurrence_id: Uuid,
     pub version_id: Uuid,
     pub parent_version_id: Option<Uuid>,
-    pub blob_created: bool,
-    pub occurrence_created: bool,
-    pub version_created: bool,
 }
 
-/// Tenant-safe MetaStore surface. There is deliberately no independent blob-upsert,
-/// occurrence-insert, raw pool, connection, or transaction accessor.
+/// Tenant-safe runtime surface. There is deliberately no caller-selected project, independent
+/// blob upsert, raw SELECT, pool, connection, or transaction accessor.
 #[async_trait]
 pub trait MetaStore {
-    async fn ingest_observation(&self, input: &IngestObservation) -> Result<IngestOutcome>;
-    async fn blob_by_hash(&self, project_id: Uuid, sha256: &str) -> Result<Option<RawBlob>>;
-    async fn find_occurrence(
-        &self,
-        project_id: Uuid,
-        source_system_id: &str,
-        source_native_id: &str,
-    ) -> Result<Option<Occurrence>>;
-    async fn occurrences_for_blob(&self, project_id: Uuid, blob_id: Uuid) -> Result<i64>;
+    async fn ingest_authorized(&self, grant_id: Uuid) -> Result<IngestOutcome>;
+}
+
+pub struct PostgresAuthorityStore {
+    pool: Pool<Postgres>,
+    authority_domain_id: Uuid,
 }
 
 pub struct PostgresMetaStore {
     pool: Pool<Postgres>,
+    authority_domain_id: Uuid,
+}
+
+impl PostgresAuthorityStore {
+    /// Connect with a dedicated NOINHERIT login whose only SET-capable membership is
+    /// `kf_authority_registrar`. Runtime credentials are rejected here and registrar credentials
+    /// are rejected by the runtime constructor.
+    pub async fn connect_registrar(url: &str, authority_domain_id: Uuid) -> Result<Self> {
+        authority::compiled_trust_registry_digest()
+            .context("authority registrar requires a build-time trust-registry pin")?;
+        if authority_domain_id.is_nil() {
+            bail!("authority domain identifier must be non-nil");
+        }
+        let pool = PoolOptions::<Postgres>::new()
+            .max_connections(2)
+            .after_connect(|connection, _metadata| {
+                Box::pin(async move {
+                    let role = query(VERIFY_REGISTRAR_ROLE_SQL)
+                        .fetch_optional(&mut *connection)
+                        .await?
+                        .ok_or_else(|| {
+                            sqlx_core::Error::Protocol(
+                                "current PostgreSQL registrar login is absent from pg_roles"
+                                    .to_owned(),
+                            )
+                        })?;
+                    let (safe, role_name) = registrar_role_row_is_safe(&role)?;
+                    if !safe {
+                        return Err(sqlx_core::Error::Protocol(format!(
+                            "PostgreSQL authority login {role_name} failed the registrar admission gate"
+                        )));
+                    }
+                    Ok(())
+                })
+            })
+            .connect(url)
+            .await?;
+        Ok(Self {
+            pool,
+            authority_domain_id,
+        })
+    }
+
+    /// Register an authority only after exact bytes are durably present in CAS. Borrowing the
+    /// endpoint-bound proof permits an exact retry after an ambiguous network result; PostgreSQL
+    /// enforces immutable idempotency and global `(issuer,key_id,nonce)` replay uniqueness.
+    pub async fn register_ingest_authority(
+        &self,
+        stored_authority: &StoredIngestAuthority,
+    ) -> Result<Uuid> {
+        let authority = stored_authority.authority();
+        let compiled_registry_sha256 = authority::compiled_trust_registry_digest()
+            .context("authority registrar requires a build-time trust-registry pin")?;
+        if authority.registry_sha256() != compiled_registry_sha256 {
+            bail!("consumed authority registry does not match the build-time pin");
+        }
+        if authority.authority_domain_id() != self.authority_domain_id {
+            bail!("consumed authority is bound to a different database security domain");
+        }
+        validate_project_id(authority.project_id())?;
+        validate_source_key(authority.source_system_id(), authority.source_native_id())?;
+        validate_sha256(authority.content_sha256())?;
+        let byte_size = i64::try_from(authority.content_size())
+            .context("authorized content size exceeds PostgreSQL bigint")?;
+        if !(0..=MAX_RAW_BLOB_BYTES).contains(&byte_size) {
+            bail!("authorized byte_size is outside the supported intake bound");
+        }
+        if stored_authority.blob().sha256 != authority.content_sha256()
+            || stored_authority.blob().byte_size != authority.content_size()
+            || stored_authority.blob().storage_uri
+                != format!("cas://sha256/{}", authority.content_sha256())
+        {
+            bail!("stored authority CAS proof does not match signed content");
+        }
+        let revalidation = stored_authority.revalidation()?;
+        let permit = cas_revalidation_semaphore()
+            .acquire_owned()
+            .await
+            .context("CAS revalidation semaphore was closed")?;
+        tokio::task::spawn_blocking(move || {
+            let _permit = permit;
+            revalidation.verify()
+        })
+        .await
+        .context("join bounded CAS revalidation worker")??;
+        let expected_grant_id = authority.database_grant_id();
+        let mut transaction = self.pool.begin().await?;
+        query(SET_LOCAL_REGISTRAR_ROLE_SQL)
+            .execute(&mut *transaction)
+            .await
+            .context("set transaction-local authority registrar role")?;
+        query(SET_LOCAL_TIMEOUTS_SQL)
+            .execute(&mut *transaction)
+            .await
+            .context("set registrar lock and statement timeouts before registration")?;
+        let row = query(REGISTER_GRANT_SQL)
+            .bind(expected_grant_id)
+            .bind(authority.authority_domain_id())
+            .bind(authority.issuer())
+            .bind(authority.key_id())
+            .bind(authority.actor())
+            .bind(authority.project_id())
+            .bind(authority.database_session_user())
+            .bind(authority.source_system_id())
+            .bind(authority.source_native_id())
+            .bind(authority.content_sha256())
+            .bind(byte_size)
+            .bind(authority.nonce())
+            .bind(authority.claims_sha256())
+            .bind(authority.issued_at_unix())
+            .bind(authority.expires_at_unix())
+            .fetch_one(&mut *transaction)
+            .await
+            .context("register consumed ingest authority")?;
+        let registered_grant_id: Uuid = row.try_get("grant_id")?;
+        if registered_grant_id != expected_grant_id {
+            bail!("PostgreSQL returned a different authority grant identifier");
+        }
+        transaction.commit().await?;
+        Ok(registered_grant_id)
+    }
 }
 
 impl PostgresMetaStore {
@@ -410,7 +777,10 @@ impl PostgresMetaStore {
     /// BYPASSRLS connection. On PostgreSQL 16, the login must be a NOINHERIT member of only
     /// `kf_runtime`, granted with ADMIN/INHERIT false and SET true. Every new physical connection
     /// repeats admission before any domain transaction can perform the transaction-local switch.
-    pub async fn connect_runtime(url: &str) -> Result<Self> {
+    pub async fn connect_runtime(url: &str, authority_domain_id: Uuid) -> Result<Self> {
+        if authority_domain_id.is_nil() {
+            bail!("authority domain identifier must be non-nil");
+        }
         let pool = PoolOptions::<Postgres>::new()
             .max_connections(4)
             .after_connect(|connection, _metadata| {
@@ -434,7 +804,10 @@ impl PostgresMetaStore {
             })
             .connect(url)
             .await?;
-        Ok(Self { pool })
+        Ok(Self {
+            pool,
+            authority_domain_id,
+        })
     }
 
     /// Test-only administrative constructor. The URL guard makes accidental connection to a
@@ -443,12 +816,16 @@ impl PostgresMetaStore {
         url: &str,
         confirmation: &str,
         cluster_confirmation: &str,
+        authority_domain_id: Uuid,
     ) -> Result<Self> {
         if confirmation != "MAWORLD_DISPOSABLE_DB_CONFIRMED" {
             bail!("explicit disposable-database confirmation is required");
         }
         if cluster_confirmation != "RESET_GLOBAL_KF_ROLES_IN_DISPOSABLE_POSTGRES_CLUSTER" {
             bail!("explicit disposable-cluster confirmation is required");
+        }
+        if authority_domain_id.is_nil() {
+            bail!("authority domain identifier must be non-nil");
         }
         let expected_database = validate_disposable_database_url(url)?;
         let expected_database_for_connections = expected_database.clone();
@@ -477,169 +854,43 @@ impl PostgresMetaStore {
             })
             .connect(url)
             .await?;
-        Ok(Self { pool })
+        Ok(Self {
+            pool,
+            authority_domain_id,
+        })
     }
 }
 
 #[async_trait]
 impl MetaStore for PostgresMetaStore {
-    async fn ingest_observation(&self, input: &IngestObservation) -> Result<IngestOutcome> {
-        validate_ingest(input)?;
+    async fn ingest_authorized(&self, grant_id: Uuid) -> Result<IngestOutcome> {
+        if grant_id.is_nil() {
+            bail!("authority grant_id must not be nil");
+        }
 
         let mut transaction = self.pool.begin().await?;
-        set_local_project(&mut transaction, input.project_id).await?;
+        query(SET_LOCAL_RUNTIME_ROLE_SQL)
+            .execute(&mut *transaction)
+            .await
+            .context("set transaction-local runtime role")?;
+        query(SET_LOCAL_TIMEOUTS_SQL)
+            .execute(&mut *transaction)
+            .await
+            .context("set runtime lock and statement timeouts before grant lock")?;
         let row = query(INGEST_SQL)
-            .bind(input.project_id)
-            .bind(input.occurrence_id)
-            .bind(input.version_id)
-            .bind(&input.source_system_id)
-            .bind(&input.source_native_id)
-            .bind(&input.source_revision_key)
-            .bind(&input.sha256)
-            .bind(input.byte_size)
-            .bind(&input.storage_uri)
+            .bind(grant_id)
+            .bind(self.authority_domain_id)
             .fetch_one(&mut *transaction)
             .await
-            .context("atomically ingest blob occurrence")?;
+            .context("atomically ingest authority-bound observation")?;
         let outcome = IngestOutcome {
-            blob_id: row.try_get("blob_id")?,
             occurrence_id: row.try_get("occurrence_id")?,
             version_id: row.try_get("version_id")?,
             parent_version_id: row.try_get("parent_version_id")?,
-            blob_created: row.try_get("blob_created")?,
-            occurrence_created: row.try_get("occurrence_created")?,
-            version_created: row.try_get("version_created")?,
         };
         transaction.commit().await?;
         Ok(outcome)
     }
-
-    async fn blob_by_hash(&self, project_id: Uuid, sha256: &str) -> Result<Option<RawBlob>> {
-        validate_project_id(project_id)?;
-        validate_sha256(sha256)?;
-        let mut transaction = self.pool.begin().await?;
-        set_local_project(&mut transaction, project_id).await?;
-        let row = query(
-            "SELECT blob_id, sha256, byte_size, storage_uri
-               FROM public.raw_blob
-              WHERE sha256=$1",
-        )
-        .bind(sha256)
-        .fetch_optional(&mut *transaction)
-        .await?;
-        let blob = row
-            .map(|row| {
-                Ok::<RawBlob, sqlx_core::Error>(RawBlob {
-                    blob_id: row.try_get("blob_id")?,
-                    sha256: row.try_get("sha256")?,
-                    byte_size: row.try_get("byte_size")?,
-                    storage_uri: row.try_get("storage_uri")?,
-                })
-            })
-            .transpose()?;
-        transaction.commit().await?;
-        Ok(blob)
-    }
-
-    async fn find_occurrence(
-        &self,
-        project_id: Uuid,
-        source_system_id: &str,
-        source_native_id: &str,
-    ) -> Result<Option<Occurrence>> {
-        validate_project_id(project_id)?;
-        validate_source_key(source_system_id, source_native_id)?;
-        let mut transaction = self.pool.begin().await?;
-        set_local_project(&mut transaction, project_id).await?;
-        let row = query(
-            "SELECT occurrence_id, project_id, source_system_id, source_native_id, blob_id
-               FROM public.artifact_occurrence
-              WHERE project_id=$1 AND source_system_id=$2 AND source_native_id=$3",
-        )
-        .bind(project_id)
-        .bind(source_system_id)
-        .bind(source_native_id)
-        .fetch_optional(&mut *transaction)
-        .await?;
-        let occurrence = row
-            .map(|row| {
-                Ok::<Occurrence, sqlx_core::Error>(Occurrence {
-                    occurrence_id: row.try_get("occurrence_id")?,
-                    project_id: row.try_get("project_id")?,
-                    source_system_id: row.try_get("source_system_id")?,
-                    source_native_id: row.try_get("source_native_id")?,
-                    blob_id: row.try_get("blob_id")?,
-                })
-            })
-            .transpose()?;
-        transaction.commit().await?;
-        Ok(occurrence)
-    }
-
-    async fn occurrences_for_blob(&self, project_id: Uuid, blob_id: Uuid) -> Result<i64> {
-        validate_project_id(project_id)?;
-        if blob_id.is_nil() {
-            bail!("blob_id must not be nil");
-        }
-        let mut transaction = self.pool.begin().await?;
-        set_local_project(&mut transaction, project_id).await?;
-        let row = query(
-            "SELECT count(*) AS n
-               FROM public.artifact_occurrence
-              WHERE project_id=$1 AND blob_id=$2",
-        )
-        .bind(project_id)
-        .bind(blob_id)
-        .fetch_one(&mut *transaction)
-        .await?;
-        let count = row.try_get::<i64, _>("n")?;
-        transaction.commit().await?;
-        Ok(count)
-    }
-}
-
-async fn set_local_project(
-    transaction: &mut sqlx_core::transaction::Transaction<'_, Postgres>,
-    project_id: Uuid,
-) -> Result<()> {
-    validate_project_id(project_id)?;
-    let expected = project_id.to_string();
-    query(SET_LOCAL_RUNTIME_ROLE_SQL)
-        .execute(&mut **transaction)
-        .await
-        .context("set transaction-local runtime role")?;
-    let row = query(SET_LOCAL_PROJECT_SQL)
-        .bind(&expected)
-        .fetch_one(&mut **transaction)
-        .await
-        .context("set transaction-local project context")?;
-    let applied: String = row.try_get("project_context")?;
-    if applied != expected {
-        bail!("PostgreSQL did not apply the requested project context");
-    }
-    Ok(())
-}
-
-fn validate_ingest(input: &IngestObservation) -> Result<()> {
-    validate_project_id(input.project_id)?;
-    if input.occurrence_id.is_nil() {
-        bail!("occurrence_id must not be nil");
-    }
-    if input.version_id.is_nil() {
-        bail!("version_id must not be nil");
-    }
-    validate_source_key(&input.source_system_id, &input.source_native_id)?;
-    validate_text(
-        &input.source_revision_key,
-        MAX_SOURCE_REVISION_BYTES,
-        "source_revision_key",
-    )?;
-    validate_sha256(&input.sha256)?;
-    if !(0..=MAX_RAW_BLOB_BYTES).contains(&input.byte_size) {
-        bail!("byte_size is outside the supported intake bound");
-    }
-    validate_text(&input.storage_uri, MAX_STORAGE_URI_BYTES, "storage_uri")?;
-    Ok(())
 }
 
 fn validate_project_id(project_id: Uuid) -> Result<()> {
@@ -686,7 +937,7 @@ fn validate_text(value: &str, maximum_bytes: usize, field: &str) -> Result<()> {
     Ok(())
 }
 
-fn validate_disposable_database_url(database_url: &str) -> Result<String> {
+pub fn validate_disposable_database_url(database_url: &str) -> Result<String> {
     let url = sqlx_core::Url::parse(database_url).context("invalid PostgreSQL test URL")?;
     if !matches!(url.scheme(), "postgres" | "postgresql")
         || url.query().is_some()
@@ -719,49 +970,16 @@ mod tests {
 
     const ROLE_MIGRATION: &str = include_str!("../../schema/002_rls_roles.sql");
     const ATOMIC_MIGRATION: &str = include_str!("../../schema/003_atomic_intake.sql");
-
-    fn valid_ingest() -> IngestObservation {
-        IngestObservation {
-            occurrence_id: Uuid::now_v7(),
-            version_id: Uuid::now_v7(),
-            project_id: Uuid::now_v7(),
-            source_system_id: "drive".into(),
-            source_native_id: "document-1".into(),
-            source_revision_key: "revision-1".into(),
-            sha256: "a".repeat(64),
-            byte_size: 27,
-            storage_uri: "cas://sha256/aa".into(),
-        }
-    }
+    const AUTHORITY_GRANT_MIGRATION: &str = include_str!("../../schema/004_authority_grants.sql");
 
     #[test]
-    fn ingest_validation_is_strict_and_bounded() {
-        assert!(validate_ingest(&valid_ingest()).is_ok());
-
-        let mut input = valid_ingest();
-        input.project_id = Uuid::nil();
-        assert!(validate_ingest(&input).is_err());
-        let mut input = valid_ingest();
-        input.occurrence_id = Uuid::nil();
-        assert!(validate_ingest(&input).is_err());
-        let mut input = valid_ingest();
-        input.version_id = Uuid::nil();
-        assert!(validate_ingest(&input).is_err());
-        let mut input = valid_ingest();
-        input.byte_size = MAX_RAW_BLOB_BYTES + 1;
-        assert!(validate_ingest(&input).is_err());
-        let mut input = valid_ingest();
-        input.source_system_id = "x".repeat(MAX_SOURCE_SYSTEM_BYTES + 1);
-        assert!(validate_ingest(&input).is_err());
-        let mut input = valid_ingest();
-        input.storage_uri = "cas://bad\0uri".into();
-        assert!(validate_ingest(&input).is_err());
-        let mut input = valid_ingest();
-        input.source_native_id = " padded".into();
-        assert!(validate_ingest(&input).is_err());
-        let mut input = valid_ingest();
-        input.source_revision_key = "revision\n2".into();
-        assert!(validate_ingest(&input).is_err());
+    fn registrar_validation_is_strict_and_bounded() {
+        assert!(validate_project_id(Uuid::nil()).is_err());
+        assert!(validate_source_key("drive", "document-1").is_ok());
+        assert!(
+            validate_source_key(&"x".repeat(MAX_SOURCE_SYSTEM_BYTES + 1), "document-1").is_err()
+        );
+        assert!(validate_source_key("drive", " padded").is_err());
     }
 
     #[test]
@@ -773,13 +991,17 @@ mod tests {
     }
 
     #[test]
-    fn project_context_is_bound_and_transaction_local() {
+    fn runtime_api_accepts_only_an_opaque_grant() {
         assert_eq!(SET_LOCAL_RUNTIME_ROLE_SQL, "SET LOCAL ROLE kf_runtime");
-        assert!(SET_LOCAL_PROJECT_SQL.contains("set_config('app.project_ids', $1, true)"));
-        assert!(SET_LOCAL_PROJECT_SQL.contains("set_config('lock_timeout', '5s', true)"));
-        assert!(SET_LOCAL_PROJECT_SQL.contains("set_config('statement_timeout', '30s', true)"));
-        assert!(!SET_LOCAL_PROJECT_SQL.contains("SET LOCAL app.project_ids ="));
-        assert_eq!(INGEST_SQL.matches('$').count(), 9);
+        assert_eq!(
+            SET_LOCAL_REGISTRAR_ROLE_SQL,
+            "SET LOCAL ROLE kf_authority_registrar"
+        );
+        assert_eq!(REGISTER_GRANT_SQL.matches('$').count(), 15);
+        assert_eq!(INGEST_SQL.matches('$').count(), 2);
+        assert!(INGEST_SQL.contains("kf_ingest_authorized"));
+        assert!(!INGEST_SQL.contains("project_id"));
+        assert!(!INGEST_SQL.contains("blob_id"));
     }
 
     #[test]
@@ -807,6 +1029,7 @@ mod tests {
             "runtime_owns_database",
             "runtime_owns_public_schema",
             "runtime_owns_public_relations",
+            "runtime_owns_public_functions",
             "NOT membership.admin_option",
             "NOT membership.inherit_option",
             "membership.set_option",
@@ -817,21 +1040,109 @@ mod tests {
             "login_owns_database",
             "login_owns_public_schema",
             "login_owns_public_relations",
+            "login_owns_public_functions",
             "login_has_direct_relation_acl",
             "pg_catalog.pg_attribute",
             "unexpected_column_acl",
             "runtime_has_forbidden_relation_acl",
             "unexpected_sequence_acl",
             "relation.relkind = 'S'",
-            "relation_acl.is_grantable",
-            "embedding_profile",
+            "login_or_public_has_function_acl",
+            "runtime_function_acl_drift",
+            "function_acl.is_grantable",
             "scoped_rls_drift",
             "relation.relrowsecurity",
             "relation.relforcerowsecurity",
             "pg_catalog.aclexplode",
         ] {
-            assert!(VERIFY_RUNTIME_ROLE_SQL.contains(required));
+            assert!(
+                VERIFY_RUNTIME_ROLE_SQL.contains(required),
+                "missing runtime admission guard: {required}"
+            );
         }
+    }
+
+    #[test]
+    fn registrar_role_verification_rejects_privilege_drift() {
+        for required in [
+            "CURRENT_USER::text AS current_name",
+            "SESSION_USER::text AS session_name",
+            "registrar.rolcreatedb",
+            "registrar.rolcreaterole",
+            "registrar.rolreplication",
+            "NOT membership.admin_option",
+            "NOT membership.inherit_option",
+            "membership.set_option",
+            "login_has_other_memberships",
+            "registrar_has_memberships",
+            "registrar_can_create_public",
+            "registrar_can_create_database_objects",
+            "authority_role_owns_database",
+            "authority_role_owns_public_schema",
+            "authority_role_owns_public_objects",
+            "unexpected_authority_relation_acl",
+            "unexpected_authority_column_acl",
+            "login_or_public_has_function_acl",
+            "registrar_function_acl_drift",
+            "kf_register_ingest_authority_grant",
+            "function_acl.is_grantable",
+        ] {
+            assert!(
+                VERIFY_REGISTRAR_ROLE_SQL.contains(required),
+                "missing registrar admission guard: {required}"
+            );
+        }
+    }
+
+    #[test]
+    fn authority_grant_migration_removes_caller_selected_scope() {
+        for required in [
+            "requires a direct dedicated migration superuser",
+            "CREATE TABLE public.kf_authority_domain",
+            "CREATE TABLE public.kf_ingest_authority_grant",
+            "CONSTRAINT kf_ingest_authority_nonce_unique UNIQUE (issuer, key_id, nonce)",
+            "CREATE OR REPLACE FUNCTION public.kf_register_ingest_authority_grant",
+            "CREATE OR REPLACE FUNCTION public.kf_ingest_authorized",
+            "FOR UPDATE",
+            "authority registrar session denied",
+            "SET lock_timeout = '5s'",
+            "SET statement_timeout = '30s'",
+            "v_current_authority_domain_id IS DISTINCT FROM p_authority_domain_id",
+            "v_grant.authority_domain_id IS DISTINCT FROM v_current_authority_domain_id",
+            "RAISE EXCEPTION 'authority domain denied' USING ERRCODE = '42501'",
+            "database_session_user IS DISTINCT FROM SESSION_USER::text",
+            "database_session_role_oid = v_target_role_id",
+            "database_session_role_oid IS DISTINCT FROM v_session_role_id",
+            "v_occurrence_id := pg_catalog.gen_random_uuid()",
+            "v_version_id := pg_catalog.gen_random_uuid()",
+            "v_grant.project_id",
+            "v_grant.source_system_id",
+            "v_grant.content_sha256",
+            "authority_grant.consumed_at IS NULL",
+            "RENAME TO kf_ingest_observation_internal",
+            "REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM kf_runtime",
+            "REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM kf_authority_registrar",
+            "REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM kf_authority_registrar",
+            "REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM kf_runtime",
+            "GRANT EXECUTE ON FUNCTION public.kf_ingest_authorized(uuid, uuid) TO kf_runtime",
+            "GRANT EXECUTE ON FUNCTION public.kf_register_ingest_authority_grant",
+            "RAISE EXCEPTION 'ingest authority denied' USING ERRCODE = '42501'",
+            "granted_acl.is_grantable",
+            "DO $function_acl_reset$",
+            "kf_ingest_owner attribute drift",
+            "authority function exact ACL drift",
+            "authority registrar ownership drift",
+            "runtime or registrar retained raw column ACL",
+            "one-shot migration and is already applied",
+            "USING ERRCODE = '55000'",
+        ] {
+            assert!(
+                AUTHORITY_GRANT_MIGRATION.contains(required),
+                "missing authority migration guard: {required}"
+            );
+        }
+        assert!(!AUTHORITY_GRANT_MIGRATION
+            .contains("GRANT EXECUTE ON FUNCTION public.kf_ingest_observation("));
     }
 
     #[test]

@@ -1,6 +1,6 @@
 # Карта модулей — слоты и статус
 
-> **Текущий security-вердикт (2026-07-18): LIVE OFF / BUILD_FREEZE BLOCKED.**
+> **Текущий security-вердикт (2026-07-22): LIVE OFF / BUILD_FREEZE BLOCKED.**
 > Эта таблица содержит исторические результаты отдельных spike-прогонов и не является production acceptance.
 > Актуальный проверяемый срез: [docs/45_SECURITY_CONTINUATION_2026-07-18.md](docs/45_SECURITY_CONTINUATION_2026-07-18.md).
 
@@ -23,7 +23,7 @@
 | services/improvement-engine | Improvement Loop: SENSE→...→PROMOTE, GEPA-раннер | improvement/* | EMPTY | |
 | apps/control-plane | API Gateway, Telegram (secret_token+nonce), Approvals | — | EMPTY | Hermes/OpenClaw? |
 | apps/trading-cell | `nautilus_trader==1.202.0`, proposal-only RiskService, kill-switch, NATS/SBE клиенты, PromotionRouter, venue adapters | trading/* | **WIP / LIVE OFF — local Rust math green; trusted observation/execution provenance pending** | BitEvo модули? |
-| apps/knowledge-foundry | intake (Rust) + Postgres MetaStore + RLS | schema/001+002+003, kf-intake, kf-store-pg | **SECURITY HOLD — local API/static boundary implemented; authority→scope, schema attestation, dedup privacy и real-DB acceptance pending** | см. `apps/knowledge-foundry/RUST_SECURITY_HOLD.md` |
+| apps/knowledge-foundry | intake (Rust) + Postgres MetaStore + RLS | schema/001+002+003+004, kf-intake, kf-store-pg | **SECURITY HOLD — authority v3 local gates 109/0/1 ignored и guarded PG 1/1 green; production DB lifecycle/TLS, CAS TOCTOU и timing non-interference pending** | см. `apps/knowledge-foundry/RUST_SECURITY_HOLD.md` |
 | apps/money-forge | пайплайн DISCOVER→...→SCALE, Stripe-вебхуки | — | EMPTY | |
 | agents/orchestrator | GPT-5.6 Sol промпты/конфиг | — | EMPTY | |
 | agents/supervisor | Fable 5 промпты/конфиг | — | EMPTY | |
@@ -37,11 +37,11 @@
 | Спайк | Что доказывает | Статус |
 |---|---|---|
 | spikes/control_spine_v0 | Telegram→gate→sandbox→kill-9→recovery без дублей; реальный ContinuityOS preflight+Ledger | **PASSED** (см. RESULT.md) |
-| apps/knowledge-foundry/kf-intake | RawBlob CAS + Occurrence/Version + JCS + идемпотентность; Rust | **LOCAL PASS 35 tests in digest-pinned Linux / SECURITY HOLD — Windows scoped intake disabled; external custody/build/host trust pending** |
+| apps/knowledge-foundry/kf-intake | RawBlob CAS + authority-v3 Consumed→Stored proof + JCS; Rust | **LOCAL PASS 70 tests; fmt/Clippy PASS / SECURITY HOLD — Windows scoped intake disabled; external custody/build/host trust pending** |
 | spikes/control_spine_v1 | MCP 2025-11-25 normalizer (11/11) + мандаторный egress-брокер (fail-closed) | **PASSED** |
 | spikes/control_spine_v2 | MCP normalizer врезан в DBOS-workflow (stricter(mcp,policy)) | **PASSED** |
-| apps/knowledge-foundry/schema (RLS) | destructive acceptance для выделенной loopback test DB | **CURRENT ACCEPTANCE SKIP — внешний PostgreSQL не предоставлен; historical result не production evidence** |
-| apps/knowledge-foundry/kf-store-pg | Rust sqlx PostgresMetaStore | **LOCAL PASS 7 / 1 ignored DB acceptance — scoped atomic API implemented; real DB proof pending** |
+| apps/knowledge-foundry/schema (RLS) | one-shot empty-volume `001–004`; guarded destructive loopback acceptance | **LOCAL PASS 1/1, 37.00s / SECURITY HOLD — existing-volume/crash/restore/clone paths не приняты** |
+| apps/knowledge-foundry/kf-store-pg | registrar + grant-only runtime Rust/sqlx boundary | **LOCAL PASS 9 default + 1/1 guarded live PG / SECURITY HOLD — role OID/ACL/timeouts/hidden outcome verified locally; production lifecycle pending** |
 | spikes/control_spine_v3 | AsyncTaskRegistry (orphan-poll ban + full state machine 11/11) + signed DelegationGrant/one-time CapabilityToken (12/12) + DurableRuntimeAdapter | **PASSED** |
 | apps/knowledge-foundry/kf-parser | bounded parser router + strict locked KF event ledger | **LOCAL PASS 17 tests / external sandbox execution pending** |
 | spikes/control_spine_v4 | Boundary-proven spike: Proposal Bridge + CTHA boundary + bypass matrix (DR2 0x09/0x0A/0x12) | **PASSED** |

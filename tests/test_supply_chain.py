@@ -49,9 +49,10 @@ compose_migrations = [
     "001_intake_core_v1_1.sql:/docker-entrypoint-initdb.d/001_kf_intake.sql:ro",
     "002_rls_roles.sql:/docker-entrypoint-initdb.d/002_kf_rls_roles.sql:ro",
     "003_atomic_intake.sql:/docker-entrypoint-initdb.d/003_kf_atomic_intake.sql:ro",
+    "004_authority_grants.sql:/docker-entrypoint-initdb.d/004_kf_authority_grants.sql:ro",
 ]
 compose_migration_positions = [compose.find(mount) for mount in compose_migrations]
-ok("Compose initializes the complete ordered KF migration chain",
+ok("Compose declares the complete ordered KF 001-004 init mount chain",
    all(position >= 0 for position in compose_migration_positions)
    and compose_migration_positions == sorted(compose_migration_positions))
 

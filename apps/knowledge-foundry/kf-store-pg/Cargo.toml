@@ -7,10 +7,11 @@ description = "Knowledge Foundry MetaStore — PostgreSQL/sqlx impl behind the s
 [dependencies]
 sqlx-core = { version = "=0.8.6", features = ["_rt-tokio"] }
 sqlx-postgres = { version = "=0.8.6", features = ["uuid"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 uuid = { version = "1", features = ["v7"] }
 anyhow = "1"
 async-trait = "0.1"
+kf-intake = { path = "../kf-intake" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

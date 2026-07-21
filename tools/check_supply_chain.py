@@ -98,12 +98,13 @@ def main() -> int:
         "001_intake_core_v1_1.sql:/docker-entrypoint-initdb.d/001_kf_intake.sql:ro",
         "002_rls_roles.sql:/docker-entrypoint-initdb.d/002_kf_rls_roles.sql:ro",
         "003_atomic_intake.sql:/docker-entrypoint-initdb.d/003_kf_atomic_intake.sql:ro",
+        "004_authority_grants.sql:/docker-entrypoint-initdb.d/004_kf_authority_grants.sql:ro",
     ]
     migration_positions = [compose.find(mount) for mount in migration_mounts]
     if any(position < 0 for position in migration_positions) or migration_positions != sorted(
         migration_positions
     ):
-        raise ValueError("Compose must mount the complete ordered KF 001/002/003 migration chain")
+        raise ValueError("Compose must mount the complete ordered KF 001/002/003/004 migration chain")
     workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     if "--require-hashes" not in workflow or "ci-verification.lock.txt" not in workflow:
         raise ValueError("CI does not enforce the verification hash lock")
@@ -148,12 +149,12 @@ def main() -> int:
     )
     if 'ed25519-dalek = { version = "=3.0.0", default-features = false }' not in intake_manifest:
         raise ValueError("kf-intake Ed25519 verifier must be exact-pinned without default features")
-    intake_main = (ROOT / "apps" / "knowledge-foundry" / "kf-intake" / "src" / "main.rs").read_text(
-        encoding="utf-8"
-    )
-    if f'option_env!("{trust_pin_name}")' not in intake_main:
+    intake_authority = (
+        ROOT / "apps" / "knowledge-foundry" / "kf-intake" / "src" / "authority.rs"
+    ).read_text(encoding="utf-8")
+    if f'option_env!("{trust_pin_name}")' not in intake_authority:
         raise ValueError("kf-intake trust registry digest must be a build-time pin")
-    if re.search(rf"std::env::(?:var|var_os)\([^\n]*{trust_pin_name}", intake_main):
+    if re.search(rf"std::env::(?:var|var_os)\([^\n]*{trust_pin_name}", intake_authority):
         raise ValueError("kf-intake must not accept a runtime trust registry digest fallback")
     action_refs = ACTION_RE.findall(workflow) + ACTION_RE.findall(rust_workflow)
     if not action_refs or not all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs):
@@ -167,7 +168,7 @@ def main() -> int:
 
     print(f"PASS supply-chain locks: profiles={len(profiles)} entries={total_entries}")
     print("PASS compose image digests: 3/3")
-    print("PASS Compose KF migration chain: 001/002/003")
+    print("PASS Compose KF migration chain: 001/002/003/004")
     print("PASS CI hash and all-marker OSV enforcement")
     print(f"PASS Rust lock/toolchain/CI audit pins: packages={len(rust_package_rows)}")
     print("PASS kf-intake build-time trust pin and unpinned verification contract")

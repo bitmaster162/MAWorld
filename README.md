@@ -1,6 +1,6 @@
 # MAWorld — MultiAgentWorldOS
 
-> **Security status (2026-07-18): LIVE OFF · BUILD_FREEZE BLOCKED · production HOLD.**
+> **Security status (2026-07-22): LIVE OFF · BUILD_FREEZE BLOCKED · production HOLD.**
 > Начинать проверку нужно с [docs/45_SECURITY_CONTINUATION_2026-07-18.md](docs/45_SECURITY_CONTINUATION_2026-07-18.md),
 > а не со старых spike-отчётов. `MAWorld_review_package.zip` — устаревший снимок до hardening;
 > его нельзя распространять или разворачивать как актуальную сборку.
@@ -38,8 +38,10 @@ incoming/       СЮДА кидай хаотичные существующие 
 ## Быстрый старт
 
 Сначала только read-only проверка локальной dev-конфигурации; это не включает сервисы или live-эффекты
-и не закрывает production gates. На новом пустом dev-volume Compose сам монтирует runtime-цепочку
-Knowledge Foundry `001 → 002 → 003`; legacy SQL вручную поверх неё не применять.
+и не закрывает production gates. Только на новом пустом dev-volume Compose монтирует runtime-цепочку
+Knowledge Foundry `001 → 002 → 003 → 004`. Migration `004` one-shot; существующий volume нельзя
+«обновить» повторным запуском init scripts — отдельный upgrade/backup/crash/restore путь ещё HOLD.
+Legacy SQL вручную поверх этой цепочки не применять.
 
 ```powershell
 Copy-Item .env.example .env  # только локальные dev credentials

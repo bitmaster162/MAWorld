@@ -66,6 +66,10 @@ impl Cas {
         }
         let canonical_store = fs::canonicalize(store_root)?;
         let requested = canonical_store.join("cas");
+        // The signed store root is itself a durability boundary. Creating its direct CAS child
+        // must sync the parent entry; syncing only deeper hash-prefix directories cannot make this
+        // first link durable across power loss.
+        ensure_direct_child(&canonical_store, &requested, true)?;
         let cas = Self::open(&requested)?;
         if cas.root.parent() != Some(canonical_store.as_path()) {
             bail!("CAS root escapes the signed store root");
@@ -142,9 +146,9 @@ impl Cas {
 
         match fs::symlink_metadata(&dest) {
             Ok(_) => {
-                verify_blob_file(&dest, &hash, Some(size))?;
+                finalize_blob_file(&dest, &hash, size)?;
                 fs::remove_file(tmp).ok();
-                return Ok(blob_info(hash, size, dest, true));
+                return Ok(blob_info(hash, size, true));
             }
             Err(error) if error.kind() == ErrorKind::NotFound => {}
             Err(error) => return Err(error.into()),
@@ -157,21 +161,10 @@ impl Cas {
         };
 
         // A racing writer is acceptable only when it published the exact expected bytes.
-        verify_blob_file(&dest, &hash, Some(size))?;
+        finalize_blob_file(&dest, &hash, size)?;
         fs::remove_file(tmp).ok();
 
-        if published {
-            let mut permissions = fs::metadata(&dest)?.permissions();
-            permissions.set_readonly(true);
-            fs::set_permissions(&dest, permissions)?;
-            File::open(&dest)?.sync_all()?;
-            sync_directory(
-                dest.parent()
-                    .ok_or_else(|| anyhow::anyhow!("CAS destination has no parent"))?,
-            )?;
-        }
-
-        Ok(blob_info(hash, size, dest, !published))
+        Ok(blob_info(hash, size, !published))
     }
 
     /// Exact bounded byte recovery, re-verifying stored bytes against the requested id.
@@ -180,27 +173,43 @@ impl Cas {
         self.prepare_parent(&path, false)?;
         read_verified_blob(&path, hash)
     }
+
+    /// Stream and re-hash an existing blob without loading it into memory. The returned digest is
+    /// derived from the opened regular file; missing files, symlinks and corrupt bytes fail closed.
+    pub fn verify_stored(&self, hash: &str) -> Result<SourceDigest> {
+        let path = self.path_for(hash)?;
+        self.prepare_parent(&path, false)?;
+        verify_blob_file(&path, hash, None)
+    }
 }
 
 fn ensure_direct_child(parent: &Path, child: &Path, create_missing: bool) -> Result<()> {
     let canonical_parent = fs::canonicalize(parent)
         .with_context(|| format!("canonicalize CAS path parent {parent:?}"))?;
-    let created = match fs::symlink_metadata(child) {
+    match fs::symlink_metadata(child) {
         Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
             bail!("CAS path component must be a non-symlink directory: {child:?}")
         }
-        Ok(_) => false,
+        Ok(_) => {}
         Err(error) if error.kind() == ErrorKind::NotFound && create_missing => {
-            fs::create_dir(child)
-                .with_context(|| format!("create direct CAS path component {child:?}"))?;
-            true
+            match fs::create_dir(child) {
+                Ok(()) => {}
+                Err(error) if error.kind() == ErrorKind::AlreadyExists => {}
+                Err(error) => {
+                    return Err(error)
+                        .with_context(|| format!("create direct CAS path component {child:?}"));
+                }
+            }
         }
         Err(error) if error.kind() == ErrorKind::NotFound => {
             bail!("CAS path component is absent: {child:?}")
         }
         Err(error) => return Err(error.into()),
-    };
-    if created {
+    }
+    // Always sync in creation mode, even when another publisher made the entry first. Otherwise a
+    // retry can observe an admissible directory created by a process that crashed before fsync and
+    // commit database state whose path is still not durable.
+    if create_missing {
         sync_directory(parent)?;
     }
     let metadata = fs::symlink_metadata(child)?;
@@ -273,11 +282,12 @@ fn validate_hash(hash: &str) -> Result<()> {
     Ok(())
 }
 
-fn blob_info(hash: String, size: u64, dest: PathBuf, deduplicated: bool) -> BlobInfo {
+fn blob_info(hash: String, size: u64, deduplicated: bool) -> BlobInfo {
+    let storage_uri = format!("cas://sha256/{hash}");
     BlobInfo {
         sha256: hash,
         byte_size: size,
-        storage_uri: dest.to_string_lossy().into_owned(),
+        storage_uri,
         deduplicated,
     }
 }
@@ -302,6 +312,25 @@ fn publish_by_exclusive_copy(tmp: &Path, dest: &Path) -> Result<bool> {
     Ok(true)
 }
 
+fn finalize_blob_file(path: &Path, expected_hash: &str, expected_size: u64) -> Result<()> {
+    // Publishers, racing losers and callers finding a pre-existing exact blob all take this path.
+    // Holding the verified file open binds chmod/fsync to the inode that was actually hashed.
+    let (file, _) = open_verified_blob(path, expected_hash, Some(expected_size))?;
+    let mut permissions = file.metadata()?.permissions();
+    permissions.set_readonly(true);
+    file.set_permissions(permissions)?;
+    file.sync_all()?;
+
+    // Confirm the pathname still resolves to the expected immutable bytes before returning a
+    // database-registerable proof. Hostile replacement after this point remains an explicit
+    // filesystem-custody HOLD for the local phase-0 CAS.
+    verify_blob_file(path, expected_hash, Some(expected_size))?;
+    sync_directory(
+        path.parent()
+            .ok_or_else(|| anyhow::anyhow!("CAS destination has no parent"))?,
+    )
+}
+
 fn inspect_blob(path: &Path) -> Result<(File, u64)> {
     let link_metadata =
         fs::symlink_metadata(path).with_context(|| format!("inspect blob {path:?}"))?;
@@ -319,7 +348,19 @@ fn inspect_blob(path: &Path) -> Result<(File, u64)> {
     Ok((file, opened_metadata.len()))
 }
 
-fn verify_blob_file(path: &Path, expected_hash: &str, expected_size: Option<u64>) -> Result<()> {
+fn verify_blob_file(
+    path: &Path,
+    expected_hash: &str,
+    expected_size: Option<u64>,
+) -> Result<SourceDigest> {
+    open_verified_blob(path, expected_hash, expected_size).map(|(_, digest)| digest)
+}
+
+fn open_verified_blob(
+    path: &Path,
+    expected_hash: &str,
+    expected_size: Option<u64>,
+) -> Result<(File, SourceDigest)> {
     let (mut file, metadata_size) = inspect_blob(path)?;
     if let Some(size) = expected_size {
         if metadata_size != size {
@@ -342,10 +383,17 @@ fn verify_blob_file(path: &Path, expected_hash: &str, expected_size: Option<u64>
         }
         hasher.update(&buffer[..count]);
     }
-    if size != metadata_size || hex::encode(hasher.finalize()) != expected_hash {
+    let actual_hash = hex::encode(hasher.finalize());
+    if size != metadata_size || actual_hash != expected_hash {
         bail!("CAS blob integrity verification failed for {expected_hash}");
     }
-    Ok(())
+    Ok((
+        file,
+        SourceDigest {
+            sha256: actual_hash,
+            byte_size: size,
+        },
+    ))
 }
 
 fn read_verified_blob(path: &Path, expected_hash: &str) -> Result<Vec<u8>> {
@@ -445,11 +493,44 @@ mod tests {
         let expected = inspect_source(&source).unwrap();
         let first = cas.put_file_expected(&source, &expected.sha256).unwrap();
         assert!(!first.deduplicated);
+        assert_eq!(
+            first.storage_uri,
+            format!("cas://sha256/{}", expected.sha256)
+        );
         assert_eq!(cas.get_verified(&first.sha256).unwrap(), b"immutable bytes");
+        assert_eq!(
+            cas.verify_stored(&first.sha256).unwrap(),
+            SourceDigest {
+                sha256: first.sha256.clone(),
+                byte_size: first.byte_size,
+            }
+        );
 
         let second = cas.put_file_expected(&source, &expected.sha256).unwrap();
         assert!(second.deduplicated);
         assert_eq!(first.sha256, second.sha256);
+    }
+
+    #[test]
+    fn preexisting_exact_blob_is_finalized_before_deduplication_returns() {
+        let temp = TestDir::new();
+        let source = temp.0.join("source.txt");
+        fs::write(&source, b"preexisting exact bytes").unwrap();
+        let cas = Cas::open(temp.0.join("cas")).unwrap();
+        let expected = inspect_source(&source).unwrap();
+        let first = cas.put_file_expected(&source, &expected.sha256).unwrap();
+        let destination = cas.path_for(&first.sha256).unwrap();
+
+        make_owner_writable(&destination);
+        assert!(!fs::metadata(&destination).unwrap().permissions().readonly());
+
+        let deduplicated = cas.put_file_expected(&source, &expected.sha256).unwrap();
+        assert!(deduplicated.deduplicated);
+        assert!(fs::metadata(&destination).unwrap().permissions().readonly());
+        assert_eq!(
+            cas.get_verified(&deduplicated.sha256).unwrap(),
+            b"preexisting exact bytes"
+        );
     }
 
     #[test]
@@ -476,6 +557,39 @@ mod tests {
 
         assert!(cas.put_file_expected(&source, &expected.sha256).is_err());
         assert!(cas.get_verified(&stored.sha256).is_err());
+        assert!(cas.verify_stored(&stored.sha256).is_err());
+    }
+
+    #[test]
+    fn streaming_revalidation_rejects_missing_blob() {
+        let temp = TestDir::new();
+        let source = temp.0.join("source.txt");
+        fs::write(&source, b"later removed").unwrap();
+        let cas = Cas::open(temp.0.join("cas")).unwrap();
+        let expected = inspect_source(&source).unwrap();
+        let stored = cas.put_file_expected(&source, &expected.sha256).unwrap();
+        let destination = cas.path_for(&stored.sha256).unwrap();
+
+        fs::remove_file(destination).unwrap();
+        assert!(cas.verify_stored(&stored.sha256).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn streaming_revalidation_rejects_blob_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TestDir::new();
+        let source = temp.0.join("source.txt");
+        fs::write(&source, b"symlink target bytes").unwrap();
+        let cas = Cas::open(temp.0.join("cas")).unwrap();
+        let expected = inspect_source(&source).unwrap();
+        let stored = cas.put_file_expected(&source, &expected.sha256).unwrap();
+        let destination = cas.path_for(&stored.sha256).unwrap();
+
+        fs::remove_file(&destination).unwrap();
+        symlink(&source, &destination).unwrap();
+        assert!(cas.verify_stored(&stored.sha256).is_err());
     }
 
     #[test]

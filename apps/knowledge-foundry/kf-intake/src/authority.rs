@@ -4,6 +4,7 @@
 //! trusted Ed25519 key comes only from an existing operator registry outside the
 //! writable intake root. A nonce is durably consumed under an exclusive sidecar
 //! lock before CAS or metadata state is created.
+use crate::cas::{BlobInfo, Cas};
 use crate::jcs;
 use anyhow::{bail, Context, Result};
 use ed25519_dalek::{Signature, VerifyingKey};
@@ -14,11 +15,12 @@ use std::fs::{File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+use uuid::Uuid;
 
-const CLAIMS_VERSION: &str = "maworld.kf.ingest-authority.v1";
+const CLAIMS_VERSION: &str = "maworld.kf.ingest-authority.v3";
 const SIGNATURE_ALGORITHM: &str = "Ed25519";
-const SIGNATURE_DOMAIN: &[u8] = b"MAWORLD\0KF-INTAKE\0AUTHORITY\0V1\0";
-const REGISTRY_VERSION: &str = "maworld.kf.ed25519-key-registry.v1";
+const SIGNATURE_DOMAIN: &[u8] = b"MAWORLD\0KF-INTAKE\0AUTHORITY\0V3\0";
+const REGISTRY_VERSION: &str = "maworld.kf.ed25519-key-registry.v3";
 const AUDIENCE: &str = "maworld.kf-intake";
 const ACTION: &str = "ingest";
 const REPLAY_VERSION: &str = "maworld.kf.authority-consume.v1";
@@ -34,42 +36,246 @@ const MAX_TRUSTED_KEYS: usize = 64;
 const MAX_POLICY_VALUES: usize = 64;
 const MAX_TTL_SECONDS: i64 = 5 * 60;
 const MAX_CONTENT_BYTES: u64 = 256 * 1024 * 1024;
+const COMPILED_TRUST_REGISTRY_SHA256: Option<&str> =
+    option_env!("MAWORLD_KF_TRUST_REGISTRY_SHA256");
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct AuthorityClaims {
-    pub(crate) version: String,
-    pub(crate) issuer: String,
-    pub(crate) key_id: String,
-    pub(crate) actor: String,
-    pub(crate) project: String,
-    pub(crate) store_root: String,
-    pub(crate) content_sha256: String,
-    pub(crate) content_size: u64,
-    pub(crate) source_system_id: String,
-    pub(crate) source_native_id: String,
-    pub(crate) nonce: String,
-    pub(crate) issued_at_unix: i64,
-    pub(crate) expires_at_unix: i64,
-    pub(crate) audience: String,
-    pub(crate) action: String,
+pub struct AuthorityClaims {
+    pub version: String,
+    pub issuer: String,
+    pub key_id: String,
+    pub actor: String,
+    pub authority_domain_id: String,
+    pub project_id: String,
+    pub database_grant_id: String,
+    pub database_session_user: String,
+    pub store_root: String,
+    pub content_sha256: String,
+    pub content_size: u64,
+    pub source_system_id: String,
+    pub source_native_id: String,
+    pub nonce: String,
+    pub issued_at_unix: i64,
+    pub expires_at_unix: i64,
+    pub audience: String,
+    pub action: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct SignedAuthorityEnvelope {
-    pub(crate) algorithm: String,
-    pub(crate) claims: AuthorityClaims,
-    pub(crate) signature_hex: String,
+pub struct SignedAuthorityEnvelope {
+    pub algorithm: String,
+    pub claims: AuthorityClaims,
+    pub signature_hex: String,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct AuthorityRequest {
-    pub(crate) project: String,
-    pub(crate) content_sha256: String,
-    pub(crate) content_size: u64,
-    pub(crate) source_system_id: String,
-    pub(crate) source_native_id: String,
+pub struct AuthorityRequest {
+    authority_domain_id: String,
+    project_id: String,
+    database_grant_id: String,
+    database_session_user: String,
+    content_sha256: String,
+    content_size: u64,
+    source_system_id: String,
+    source_native_id: String,
+}
+
+impl AuthorityRequest {
+    // Keeping every signed binding explicit at the trust-boundary call site is safer than hiding
+    // security-relevant values in a loosely populated builder.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        authority_domain_id: String,
+        project_id: String,
+        database_grant_id: String,
+        database_session_user: String,
+        content_sha256: String,
+        content_size: u64,
+        source_system_id: String,
+        source_native_id: String,
+    ) -> Self {
+        Self {
+            authority_domain_id,
+            project_id,
+            database_grant_id,
+            database_session_user,
+            content_sha256,
+            content_size,
+            source_system_id,
+            source_native_id,
+        }
+    }
+
+    pub fn authority_domain_id(&self) -> &str {
+        &self.authority_domain_id
+    }
+}
+
+/// Unforgeable in-process proof that a signed, policy-allowed ingest authority was verified and
+/// its replay key was durably consumed. Fields are deliberately private and the type is neither
+/// cloneable nor deserializable; downstream code must derive scope from its getters.
+#[derive(Debug)]
+pub struct ConsumedIngestAuthority {
+    canonical_root: PathBuf,
+    authority_domain_id: Uuid,
+    project_id: Uuid,
+    database_grant_id: Uuid,
+    database_session_user: String,
+    issuer: String,
+    key_id: String,
+    actor: String,
+    content_sha256: String,
+    content_size: u64,
+    source_system_id: String,
+    source_native_id: String,
+    nonce: String,
+    issued_at_unix: i64,
+    expires_at_unix: i64,
+    claims_sha256: String,
+    registry_sha256: String,
+}
+
+impl ConsumedIngestAuthority {
+    pub fn canonical_root(&self) -> &Path {
+        &self.canonical_root
+    }
+
+    pub fn authority_domain_id(&self) -> Uuid {
+        self.authority_domain_id
+    }
+
+    pub fn project_id(&self) -> Uuid {
+        self.project_id
+    }
+
+    pub fn database_grant_id(&self) -> Uuid {
+        self.database_grant_id
+    }
+
+    pub fn database_session_user(&self) -> &str {
+        &self.database_session_user
+    }
+
+    pub fn issuer(&self) -> &str {
+        &self.issuer
+    }
+
+    pub fn key_id(&self) -> &str {
+        &self.key_id
+    }
+
+    pub fn actor(&self) -> &str {
+        &self.actor
+    }
+
+    pub fn content_sha256(&self) -> &str {
+        &self.content_sha256
+    }
+
+    pub fn content_size(&self) -> u64 {
+        self.content_size
+    }
+
+    pub fn source_system_id(&self) -> &str {
+        &self.source_system_id
+    }
+
+    pub fn source_native_id(&self) -> &str {
+        &self.source_native_id
+    }
+
+    pub fn nonce(&self) -> &str {
+        &self.nonce
+    }
+
+    pub fn issued_at_unix(&self) -> i64 {
+        self.issued_at_unix
+    }
+
+    pub fn expires_at_unix(&self) -> i64 {
+        self.expires_at_unix
+    }
+
+    pub fn claims_sha256(&self) -> &str {
+        &self.claims_sha256
+    }
+
+    pub fn registry_sha256(&self) -> &str {
+        &self.registry_sha256
+    }
+}
+
+/// Proof that the exact authorized bytes were durably published to the scoped CAS. PostgreSQL
+/// registration accepts this type, never a merely verified mandate, preventing claims-only blob
+/// registration and supporting immediate pre-registration revalidation.
+#[derive(Debug)]
+pub struct StoredIngestAuthority {
+    authority: ConsumedIngestAuthority,
+    blob: BlobInfo,
+}
+
+/// Owned, one-shot CAS verification work item. Its private owned fields make it `Send + 'static`
+/// without exposing a way for callers to replace the signed root, hash, size or logical URI.
+#[derive(Debug)]
+pub struct StoredCasRevalidation {
+    canonical_root: PathBuf,
+    content_sha256: String,
+    content_size: u64,
+    storage_uri: String,
+}
+
+impl StoredIngestAuthority {
+    pub fn authority(&self) -> &ConsumedIngestAuthority {
+        &self.authority
+    }
+
+    pub fn blob(&self) -> &BlobInfo {
+        &self.blob
+    }
+
+    /// Build an owned work item suitable for `spawn_blocking` immediately before registration.
+    pub fn revalidation(&self) -> Result<StoredCasRevalidation> {
+        let authority = self.authority();
+        let expected_uri = format!("cas://sha256/{}", authority.content_sha256());
+        if self.blob.sha256 != authority.content_sha256()
+            || self.blob.byte_size != authority.content_size()
+            || self.blob.storage_uri != expected_uri
+        {
+            bail!("stored authority metadata no longer matches its signed content binding");
+        }
+
+        Ok(StoredCasRevalidation {
+            canonical_root: authority.canonical_root().to_path_buf(),
+            content_sha256: authority.content_sha256().to_string(),
+            content_size: authority.content_size(),
+            storage_uri: self.blob.storage_uri.clone(),
+        })
+    }
+
+    /// Synchronous convenience for non-async callers and focused verification tests.
+    pub fn revalidate_cas(&self) -> Result<()> {
+        self.revalidation()?.verify()
+    }
+}
+
+impl StoredCasRevalidation {
+    /// Re-open the signed CAS scope and stream the stored bytes through SHA-256. Consuming the
+    /// snapshot discourages accidental reuse after another asynchronous boundary.
+    pub fn verify(self) -> Result<()> {
+        let expected_uri = format!("cas://sha256/{}", self.content_sha256);
+        if self.storage_uri != expected_uri {
+            bail!("stored CAS logical URI is not canonical");
+        }
+
+        let cas = Cas::open_scoped(&self.canonical_root)?;
+        let digest = cas.verify_stored(&self.content_sha256)?;
+        if digest.sha256 != self.content_sha256 || digest.byte_size != self.content_size {
+            bail!("stored CAS bytes no longer match the consumed authority");
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -86,7 +292,9 @@ struct TrustedKey {
     key_id: String,
     public_key_hex: String,
     allowed_actors: Vec<String>,
+    allowed_authority_domain_ids: Vec<String>,
     allowed_projects: Vec<String>,
+    allowed_database_session_users: Vec<String>,
     allowed_store_roots: Vec<String>,
     max_ttl_seconds: i64,
 }
@@ -135,16 +343,16 @@ impl ReplayState {
     }
 }
 
-/// Verify a mandate against an external registry whose exact bytes match the
-/// build-time digest pin, then consume its nonce. On success the returned path is
-/// the canonical root bound by the signature.
-pub(crate) fn authorize_and_consume(
+/// Verify a mandate against an external registry whose exact bytes match the build-time digest
+/// pin, then consume its nonce. The returned capability carries only signed, policy-checked
+/// values; callers must not continue using their pre-verification request fields.
+pub fn authorize_and_consume(
     store_root: &Path,
     trust_registry: &Path,
-    expected_registry_sha256: &str,
     envelope_path: &Path,
     request: &AuthorityRequest,
-) -> Result<PathBuf> {
+) -> Result<ConsumedIngestAuthority> {
+    let expected_registry_sha256 = compiled_trust_registry_digest()?;
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .context("system clock is before Unix epoch")?;
@@ -160,6 +368,31 @@ pub(crate) fn authorize_and_consume(
     )
 }
 
+/// Publish exact source bytes after mandate consumption and return the only capability accepted
+/// by the PostgreSQL registrar. A changed source burns authority but never creates database state.
+pub fn publish_authorized_source(
+    authority: ConsumedIngestAuthority,
+    source: &Path,
+) -> Result<StoredIngestAuthority> {
+    let cas = Cas::open_scoped(authority.canonical_root())?;
+    let blob = cas.put_file_expected(source, authority.content_sha256())?;
+    if blob.byte_size != authority.content_size() {
+        bail!("source size changed after authority consumption");
+    }
+    if blob.storage_uri != format!("cas://sha256/{}", authority.content_sha256()) {
+        bail!("CAS returned a non-canonical storage URI");
+    }
+    Ok(StoredIngestAuthority { authority, blob })
+}
+
+pub fn compiled_trust_registry_digest() -> Result<&'static str> {
+    let digest = COMPILED_TRUST_REGISTRY_SHA256.context(
+        "kf-intake was compiled without MAWORLD_KF_TRUST_REGISTRY_SHA256; authority is disabled",
+    )?;
+    validate_registry_digest(digest)?;
+    Ok(digest)
+}
+
 #[cfg(test)]
 pub(crate) fn authorize_and_consume_at_for_test(
     store_root: &Path,
@@ -168,7 +401,7 @@ pub(crate) fn authorize_and_consume_at_for_test(
     envelope_path: &Path,
     request: &AuthorityRequest,
     now: i64,
-) -> Result<PathBuf> {
+) -> Result<ConsumedIngestAuthority> {
     authorize_and_consume_at(
         store_root,
         trust_registry,
@@ -186,7 +419,7 @@ fn authorize_and_consume_at(
     envelope_path: &Path,
     request: &AuthorityRequest,
     now: i64,
-) -> Result<PathBuf> {
+) -> Result<ConsumedIngestAuthority> {
     if now < 0 {
         bail!("authority verification time must be non-negative");
     }
@@ -230,17 +463,45 @@ fn authorize_and_consume_at(
     let signature_bytes =
         decode_lower_hex_array::<64>(&envelope.signature_hex, "Ed25519 signature")?;
     let signature = Signature::from_bytes(&signature_bytes);
-    let message = signature_message(&envelope.claims)?;
+    let message = signing_message(&envelope.claims)?;
     verifying_key
         .verify_strict(&message, &signature)
         .context("authority signature verification failed")?;
 
     let claims_sha256 = sha256_hex(&message);
+    let authority_domain_id = canonical_uuid(
+        &envelope.claims.authority_domain_id,
+        "authority authority_domain_id",
+    )?;
+    let project_id = canonical_uuid(&envelope.claims.project_id, "authority project_id")?;
+    let database_grant_id = canonical_uuid(
+        &envelope.claims.database_grant_id,
+        "authority database_grant_id",
+    )?;
     consume_nonce(&canonical_root, &envelope.claims, &claims_sha256, now)?;
-    Ok(canonical_root)
+    let claims = envelope.claims;
+    Ok(ConsumedIngestAuthority {
+        canonical_root,
+        authority_domain_id,
+        project_id,
+        database_grant_id,
+        database_session_user: claims.database_session_user,
+        issuer: claims.issuer,
+        key_id: claims.key_id,
+        actor: claims.actor,
+        content_sha256: claims.content_sha256,
+        content_size: claims.content_size,
+        source_system_id: claims.source_system_id,
+        source_native_id: claims.source_native_id,
+        nonce: claims.nonce,
+        issued_at_unix: claims.issued_at_unix,
+        expires_at_unix: claims.expires_at_unix,
+        claims_sha256,
+        registry_sha256: expected_registry_sha256.to_owned(),
+    })
 }
 
-pub(crate) fn validate_registry_digest(value: &str) -> Result<()> {
+pub fn validate_registry_digest(value: &str) -> Result<()> {
     validate_hash(value, "build-time trust registry SHA-256")
 }
 
@@ -299,7 +560,28 @@ fn validate_registry(registry: &TrustedKeyRegistry) -> Result<()> {
             bail!("duplicate key_id in trust registry");
         }
         validate_policy_values("allowed_actors", &key.allowed_actors, 256, false)?;
+        validate_policy_values(
+            "allowed_authority_domain_ids",
+            &key.allowed_authority_domain_ids,
+            36,
+            false,
+        )?;
+        for authority_domain_id in &key.allowed_authority_domain_ids {
+            canonical_uuid(authority_domain_id, "allowed_authority_domain_ids entry")?;
+        }
         validate_policy_values("allowed_projects", &key.allowed_projects, 256, false)?;
+        for project_id in &key.allowed_projects {
+            canonical_uuid(project_id, "allowed_projects entry")?;
+        }
+        validate_policy_values(
+            "allowed_database_session_users",
+            &key.allowed_database_session_users,
+            63,
+            false,
+        )?;
+        for session_user in &key.allowed_database_session_users {
+            validate_token("allowed database session user", session_user, 63, 1)?;
+        }
         validate_policy_values("allowed_store_roots", &key.allowed_store_roots, 4_096, true)?;
         if key.max_ttl_seconds <= 0 || key.max_ttl_seconds > MAX_TTL_SECONDS {
             bail!("trusted key max_ttl_seconds is outside the accepted range");
@@ -351,8 +633,20 @@ fn enforce_key_policy(
     if !key.allowed_actors.contains(&claims.actor) {
         bail!("authority actor is outside the trusted key policy");
     }
-    if !key.allowed_projects.contains(&claims.project) {
+    if !key
+        .allowed_authority_domain_ids
+        .contains(&claims.authority_domain_id)
+    {
+        bail!("authority domain is outside the trusted key policy");
+    }
+    if !key.allowed_projects.contains(&claims.project_id) {
         bail!("authority project is outside the trusted key policy");
+    }
+    if !key
+        .allowed_database_session_users
+        .contains(&claims.database_session_user)
+    {
+        bail!("authority database session user is outside the trusted key policy");
     }
     if !key
         .allowed_store_roots
@@ -387,13 +681,21 @@ fn validate_claims(
     validate_token("issuer", &claims.issuer, 128, 1)?;
     validate_token("key_id", &claims.key_id, 96, 1)?;
     validate_text("actor", &claims.actor, 256, 1)?;
-    validate_text("project", &claims.project, 256, 1)?;
+    canonical_uuid(&claims.authority_domain_id, "authority authority_domain_id")?;
+    canonical_uuid(&claims.project_id, "authority project_id")?;
+    canonical_uuid(&claims.database_grant_id, "authority database_grant_id")?;
+    validate_token(
+        "database_session_user",
+        &claims.database_session_user,
+        63,
+        1,
+    )?;
     validate_text("store_root", &claims.store_root, 4_096, 1)?;
     validate_hash(&claims.content_sha256, "authority content_sha256")?;
     if claims.content_size > MAX_CONTENT_BYTES {
         bail!("authority content_size exceeds the intake limit");
     }
-    validate_text("source_system_id", &claims.source_system_id, 256, 1)?;
+    validate_text("source_system_id", &claims.source_system_id, 128, 1)?;
     validate_text("source_native_id", &claims.source_native_id, 4_096, 1)?;
     validate_token("nonce", &claims.nonce, 128, 16)?;
     if claims.audience != AUDIENCE {
@@ -422,8 +724,17 @@ fn validate_claims(
         bail!("authority has expired");
     }
 
-    if claims.project != request.project {
+    if claims.authority_domain_id != request.authority_domain_id {
+        bail!("authority domain binding mismatch");
+    }
+    if claims.project_id != request.project_id {
         bail!("authority project binding mismatch");
+    }
+    if claims.database_grant_id != request.database_grant_id {
+        bail!("authority database grant binding mismatch");
+    }
+    if claims.database_session_user != request.database_session_user {
+        bail!("authority database session binding mismatch");
     }
     if claims.store_root != canonical_root {
         bail!("authority store_root binding mismatch");
@@ -441,7 +752,8 @@ fn validate_claims(
     Ok(())
 }
 
-fn signature_message(claims: &AuthorityClaims) -> Result<Vec<u8>> {
+/// Canonical domain-separated bytes that an authority issuer signs.
+pub fn signing_message(claims: &AuthorityClaims) -> Result<Vec<u8>> {
     let canonical = jcs::canonical_bytes(claims)?;
     let mut message = Vec::with_capacity(SIGNATURE_DOMAIN.len() + canonical.len());
     message.extend_from_slice(SIGNATURE_DOMAIN);
@@ -796,6 +1108,14 @@ fn validate_hash(value: &str, label: &str) -> Result<()> {
     Ok(())
 }
 
+fn canonical_uuid(value: &str, label: &str) -> Result<Uuid> {
+    let parsed = Uuid::parse_str(value).with_context(|| format!("{label} must be a UUID"))?;
+    if parsed.is_nil() || parsed.to_string() != value {
+        bail!("{label} must be a canonical non-nil lowercase UUID");
+    }
+    Ok(parsed)
+}
+
 fn decode_lower_hex_array<const N: usize>(value: &str, label: &str) -> Result<[u8; N]> {
     if value.len() != N * 2
         || !value
@@ -849,6 +1169,12 @@ mod tests {
     use std::sync::{Arc, Barrier};
 
     const NOW: i64 = 1_900_000_000;
+    const AUTHORITY_DOMAIN_A: &str = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const AUTHORITY_DOMAIN_B: &str = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const PROJECT_A: &str = "11111111-1111-4111-8111-111111111111";
+    const PROJECT_B: &str = "22222222-2222-4222-8222-222222222222";
+    const GRANT_A: &str = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const SESSION_USER: &str = "kf_runtime_test";
 
     struct TestDir(PathBuf);
 
@@ -873,6 +1199,7 @@ mod tests {
         registry: PathBuf,
         registry_sha256: String,
         envelope: PathBuf,
+        source: PathBuf,
         signing_key: SigningKey,
         claims: AuthorityClaims,
         request: AuthorityRequest,
@@ -885,6 +1212,8 @@ mod tests {
             let operator = temp.0.join("operator-trust");
             std::fs::create_dir(&root).unwrap();
             std::fs::create_dir(&operator).unwrap();
+            let source = temp.0.join("source.txt");
+            std::fs::write(&source, b"authorized bytes").unwrap();
             let signing_key = SigningKey::from_bytes(&[7_u8; 32]);
             let public_key = signing_key.verifying_key().to_bytes();
             let key_id = key_id_for_public_key(&public_key);
@@ -896,7 +1225,9 @@ mod tests {
                     key_id: key_id.clone(),
                     public_key_hex: hex::encode(public_key),
                     allowed_actors: vec!["operator-1".to_string()],
-                    allowed_projects: vec!["project-a".to_string()],
+                    allowed_authority_domain_ids: vec![AUTHORITY_DOMAIN_A.to_string()],
+                    allowed_projects: vec![PROJECT_A.to_string()],
+                    allowed_database_session_users: vec![SESSION_USER.to_string()],
                     allowed_store_roots: vec![path_text(
                         &std::fs::canonicalize(&root).unwrap(),
                         "root",
@@ -908,19 +1239,25 @@ mod tests {
             std::fs::write(&registry, serde_json::to_vec(&registry_body).unwrap()).unwrap();
             let registry_sha256 = sha256_hex(std::fs::read(&registry).unwrap());
             let content_sha256 = sha256_hex(b"authorized bytes");
-            let request = AuthorityRequest {
-                project: "project-a".to_string(),
-                content_sha256: content_sha256.clone(),
-                content_size: 16,
-                source_system_id: "local-folder".to_string(),
-                source_native_id: "project-a::document.txt".to_string(),
-            };
+            let request = AuthorityRequest::new(
+                AUTHORITY_DOMAIN_A.to_string(),
+                PROJECT_A.to_string(),
+                GRANT_A.to_string(),
+                SESSION_USER.to_string(),
+                content_sha256.clone(),
+                16,
+                "local-folder".to_string(),
+                "project-a::document.txt".to_string(),
+            );
             let claims = AuthorityClaims {
                 version: CLAIMS_VERSION.to_string(),
                 issuer: "maworld-operator".to_string(),
                 key_id,
                 actor: "operator-1".to_string(),
-                project: request.project.clone(),
+                authority_domain_id: request.authority_domain_id.clone(),
+                project_id: request.project_id.clone(),
+                database_grant_id: request.database_grant_id.clone(),
+                database_session_user: request.database_session_user.clone(),
                 store_root: path_text(&std::fs::canonicalize(&root).unwrap(), "root").unwrap(),
                 content_sha256,
                 content_size: request.content_size,
@@ -939,6 +1276,7 @@ mod tests {
                 registry,
                 registry_sha256,
                 envelope,
+                source,
                 signing_key,
                 claims,
                 request,
@@ -950,7 +1288,7 @@ mod tests {
         fn write_signed(&self, claims: &AuthorityClaims) {
             let signature = self
                 .signing_key
-                .sign(&signature_message(claims).expect("canonical authority claims"));
+                .sign(&signing_message(claims).expect("canonical authority claims"));
             let envelope = SignedAuthorityEnvelope {
                 algorithm: SIGNATURE_ALGORITHM.to_string(),
                 claims: claims.clone(),
@@ -959,8 +1297,8 @@ mod tests {
             std::fs::write(&self.envelope, serde_json::to_vec(&envelope).unwrap()).unwrap();
         }
 
-        fn authorize(&self) -> Result<PathBuf> {
-            authorize_and_consume_at(
+        fn authorize(&self) -> Result<ConsumedIngestAuthority> {
+            authorize_and_consume_at_for_test(
                 &self.root,
                 &self.registry,
                 &self.registry_sha256,
@@ -974,12 +1312,77 @@ mod tests {
     #[test]
     fn valid_signature_consumes_nonce_before_returning() {
         let fixture = Fixture::new("valid");
-        let canonical = fixture.authorize().unwrap();
-        assert_eq!(canonical, std::fs::canonicalize(&fixture.root).unwrap());
+        assert_eq!(fixture.request.authority_domain_id(), AUTHORITY_DOMAIN_A);
+        let authorized = fixture.authorize().unwrap();
+        assert_eq!(
+            authorized.canonical_root(),
+            std::fs::canonicalize(&fixture.root).unwrap()
+        );
+        assert_eq!(
+            authorized.authority_domain_id().to_string(),
+            AUTHORITY_DOMAIN_A
+        );
+        assert_eq!(authorized.project_id().to_string(), PROJECT_A);
+        assert_eq!(authorized.database_grant_id().to_string(), GRANT_A);
+        assert_eq!(authorized.database_session_user(), SESSION_USER);
+        assert_eq!(authorized.content_sha256(), fixture.claims.content_sha256);
+        assert_eq!(authorized.source_system_id(), "local-folder");
         let ledger = fixture.root.join(".authority/consumed.jsonl");
         let body = std::fs::read(&ledger).unwrap();
         assert!(body.ends_with(b"\n"));
         assert_eq!(load_replay(&ledger).unwrap().seq, 1);
+    }
+
+    #[test]
+    fn stored_revalidation_work_item_is_send_static() {
+        fn assert_send_static<T: Send + 'static>() {}
+        assert_send_static::<StoredCasRevalidation>();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stored_revalidation_rejects_noncanonical_logical_uri() {
+        let fixture = Fixture::new("storage-uri");
+        let mut stored =
+            publish_authorized_source(fixture.authorize().unwrap(), fixture.source.as_path())
+                .unwrap();
+        stored.blob.storage_uri = "cas://sha256/not-the-signed-hash".to_string();
+        assert!(stored.revalidation().is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stored_authority_revalidation_rejects_missing_symlinked_or_corrupt_blob() {
+        use std::os::unix::fs::symlink;
+
+        for (label, replacement) in [
+            ("missing", None),
+            ("symlink", Some(true)),
+            ("corrupt", Some(false)),
+        ] {
+            let fixture = Fixture::new(label);
+            let stored =
+                publish_authorized_source(fixture.authorize().unwrap(), fixture.source.as_path())
+                    .unwrap();
+            stored.revalidate_cas().unwrap();
+            let hash = stored.blob().sha256.clone();
+            let blob_path = fixture
+                .root
+                .join("cas")
+                .join(&hash[0..2])
+                .join(&hash[2..4])
+                .join(&hash);
+            std::fs::remove_file(&blob_path).unwrap();
+            match replacement {
+                Some(true) => symlink(&fixture.source, &blob_path).unwrap(),
+                Some(false) => std::fs::write(&blob_path, b"corrupt bytes!!").unwrap(),
+                None => {}
+            }
+            assert!(
+                stored.revalidate_cas().is_err(),
+                "{label} blob was accepted"
+            );
+        }
     }
 
     #[test]
@@ -992,7 +1395,7 @@ mod tests {
                 .signature_hex
         };
         let mut mutated = fixture.claims.clone();
-        mutated.project = "project-b".to_string();
+        mutated.project_id = PROJECT_B.to_string();
         let envelope = SignedAuthorityEnvelope {
             algorithm: SIGNATURE_ALGORITHM.to_string(),
             claims: mutated,
@@ -1008,7 +1411,37 @@ mod tests {
     fn project_hash_and_source_bindings_are_exact() {
         let fixture = Fixture::new("request-bindings");
         let mut request = fixture.request.clone();
-        request.project = "project-b".to_string();
+        request.authority_domain_id = AUTHORITY_DOMAIN_B.to_string();
+        let error = authorize_and_consume_at(
+            &fixture.root,
+            &fixture.registry,
+            &fixture.registry_sha256,
+            &fixture.envelope,
+            &request,
+            NOW,
+        )
+        .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("authority domain binding mismatch"));
+
+        let mut request = fixture.request.clone();
+        request.project_id = PROJECT_B.to_string();
+        let error = authorize_and_consume_at(
+            &fixture.root,
+            &fixture.registry,
+            &fixture.registry_sha256,
+            &fixture.envelope,
+            &request,
+            NOW,
+        )
+        .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("authority project binding mismatch"));
+
+        let mut request = fixture.request.clone();
+        request.database_grant_id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb".to_string();
         assert!(authorize_and_consume_at(
             &fixture.root,
             &fixture.registry,
@@ -1017,7 +1450,23 @@ mod tests {
             &request,
             NOW
         )
-        .is_err());
+        .unwrap_err()
+        .to_string()
+        .contains("authority database grant binding mismatch"));
+
+        let mut request = fixture.request.clone();
+        request.database_session_user = "other_runtime".to_string();
+        assert!(authorize_and_consume_at(
+            &fixture.root,
+            &fixture.registry,
+            &fixture.registry_sha256,
+            &fixture.envelope,
+            &request,
+            NOW
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("authority database session binding mismatch"));
 
         let mut request = fixture.request.clone();
         request.content_sha256 = "b".repeat(64);
@@ -1033,6 +1482,82 @@ mod tests {
 
         let mut request = fixture.request.clone();
         request.source_native_id = "other-source".to_string();
+        assert!(authorize_and_consume_at(
+            &fixture.root,
+            &fixture.registry,
+            &fixture.registry_sha256,
+            &fixture.envelope,
+            &request,
+            NOW
+        )
+        .is_err());
+        assert!(!fixture.root.join(".authority").exists());
+        assert_eq!(
+            fixture.authorize().unwrap().project_id().to_string(),
+            PROJECT_A
+        );
+        assert_eq!(
+            load_replay(&fixture.root.join(".authority/consumed.jsonl"))
+                .unwrap()
+                .seq,
+            1
+        );
+    }
+
+    #[test]
+    fn nil_or_noncanonical_database_scope_fails_before_replay() {
+        let fixture = Fixture::new("canonical-database-scope");
+        for invalid_domain in [
+            "00000000-0000-0000-0000-000000000000",
+            "DDDDDDDD-DDDD-4DDD-8DDD-DDDDDDDDDDDD",
+        ] {
+            let mut claims = fixture.claims.clone();
+            claims.authority_domain_id = invalid_domain.to_string();
+            fixture.write_signed(&claims);
+            let mut request = fixture.request.clone();
+            request.authority_domain_id = invalid_domain.to_string();
+            assert!(authorize_and_consume_at(
+                &fixture.root,
+                &fixture.registry,
+                &fixture.registry_sha256,
+                &fixture.envelope,
+                &request,
+                NOW
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("canonical non-nil lowercase UUID"));
+            assert!(!fixture.root.join(".authority").exists());
+        }
+
+        for invalid_project in [
+            "00000000-0000-0000-0000-000000000000",
+            "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
+        ] {
+            let mut claims = fixture.claims.clone();
+            claims.project_id = invalid_project.to_string();
+            fixture.write_signed(&claims);
+            let mut request = fixture.request.clone();
+            request.project_id = invalid_project.to_string();
+            assert!(authorize_and_consume_at(
+                &fixture.root,
+                &fixture.registry,
+                &fixture.registry_sha256,
+                &fixture.envelope,
+                &request,
+                NOW
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("canonical non-nil lowercase UUID"));
+            assert!(!fixture.root.join(".authority").exists());
+        }
+
+        let mut claims = fixture.claims.clone();
+        claims.database_grant_id = "00000000-0000-0000-0000-000000000000".to_string();
+        fixture.write_signed(&claims);
+        let mut request = fixture.request.clone();
+        request.database_grant_id = claims.database_grant_id;
         assert!(authorize_and_consume_at(
             &fixture.root,
             &fixture.registry,
@@ -1082,10 +1607,40 @@ mod tests {
         assert!(fixture.authorize().is_err());
 
         claims = fixture.claims.clone();
-        claims.project = "project-b".to_string();
+        claims.authority_domain_id = AUTHORITY_DOMAIN_B.to_string();
         fixture.write_signed(&claims);
         let mut request = fixture.request.clone();
-        request.project = "project-b".to_string();
+        request.authority_domain_id = AUTHORITY_DOMAIN_B.to_string();
+        assert!(authorize_and_consume_at(
+            &fixture.root,
+            &fixture.registry,
+            &fixture.registry_sha256,
+            &fixture.envelope,
+            &request,
+            NOW
+        )
+        .is_err());
+
+        claims = fixture.claims.clone();
+        claims.project_id = PROJECT_B.to_string();
+        fixture.write_signed(&claims);
+        let mut request = fixture.request.clone();
+        request.project_id = PROJECT_B.to_string();
+        assert!(authorize_and_consume_at(
+            &fixture.root,
+            &fixture.registry,
+            &fixture.registry_sha256,
+            &fixture.envelope,
+            &request,
+            NOW
+        )
+        .is_err());
+
+        claims = fixture.claims.clone();
+        claims.database_session_user = "other_runtime".to_string();
+        fixture.write_signed(&claims);
+        let mut request = fixture.request.clone();
+        request.database_session_user = "other_runtime".to_string();
         assert!(authorize_and_consume_at(
             &fixture.root,
             &fixture.registry,
@@ -1146,6 +1701,53 @@ mod tests {
         let fixture = Fixture::new("restart-replay");
         fixture.authorize().unwrap();
         let error = fixture.authorize().unwrap_err().to_string();
+        assert!(error.contains("already been consumed"));
+        assert_eq!(
+            load_replay(&fixture.root.join(".authority/consumed.jsonl"))
+                .unwrap()
+                .seq,
+            1
+        );
+    }
+
+    #[test]
+    fn replay_key_cannot_be_rebound_to_another_project() {
+        let fixture = Fixture::new("cross-project-replay");
+        let mut registry: TrustedKeyRegistry =
+            serde_json::from_slice(&std::fs::read(&fixture.registry).unwrap()).unwrap();
+        registry.keys[0]
+            .allowed_projects
+            .push(PROJECT_B.to_string());
+        std::fs::write(&fixture.registry, serde_json::to_vec(&registry).unwrap()).unwrap();
+        let registry_sha256 = sha256_hex(std::fs::read(&fixture.registry).unwrap());
+
+        authorize_and_consume_at(
+            &fixture.root,
+            &fixture.registry,
+            &registry_sha256,
+            &fixture.envelope,
+            &fixture.request,
+            NOW,
+        )
+        .unwrap();
+
+        let mut claims = fixture.claims.clone();
+        claims.project_id = PROJECT_B.to_string();
+        claims.database_grant_id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb".to_string();
+        fixture.write_signed(&claims);
+        let mut request = fixture.request.clone();
+        request.project_id = claims.project_id;
+        request.database_grant_id = claims.database_grant_id;
+        let error = authorize_and_consume_at(
+            &fixture.root,
+            &fixture.registry,
+            &registry_sha256,
+            &fixture.envelope,
+            &request,
+            NOW,
+        )
+        .unwrap_err()
+        .to_string();
         assert!(error.contains("already been consumed"));
         assert_eq!(
             load_replay(&fixture.root.join(".authority/consumed.jsonl"))

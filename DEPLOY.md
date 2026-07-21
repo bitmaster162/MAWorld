@@ -1,6 +1,6 @@
 # MAWorld — production deployment gate
 
-Дата: **2026-07-18**
+Дата: **2026-07-22**
 
 ## Решение
 
@@ -14,14 +14,15 @@ provider-вызовов. Credential, env flag и owner statement сами по �
 | Проверка | Результат | Статус |
 |---|---:|---|
 | Root adversarial | 54/54, 1086 | local PASS |
-| Active entrypoints | 20/21, 411, SKIP=1 | dedicated PostgreSQL acceptance не выполнена |
+| Active entrypoints | 20/21, 411, SKIP=1 | external PostgreSQL RLS acceptance явно SKIP |
 | Runner / release contracts | 22/22 · 14/14 | PASS |
 | Single-source | 10/10 | PASS |
 | Tier-2 Windows | 42/0/5 | production gate не пройден |
-| Formats | 291/5/8/24, failures=0 | syntax only |
 | Python supply | 71 hashed entries; OSV 44/0 | local PASS only |
-| Rust workspace | 72 PASS; 1 ignored DB acceptance; fmt/Clippy PASS | digest-pinned Linux local PASS only; scoped intake disabled on Windows |
-| RustSec | 169 dependencies / 0 findings | pinned snapshot |
+| Rust workspace authority v3 | 109 PASS / 0 FAIL / 1 ignored; fmt/Clippy PASS | digest-pinned local evidence; scoped intake disabled on Windows |
+| Guarded PostgreSQL 16 authority v3 | 1/1 PASS, 37.00s | disposable clean-volume evidence; production lifecycle не принят |
+| RustSec / current Cargo.lock | 169 dependencies / 0 vulnerabilities | 1166 advisories loaded; pinned audit |
+| Cargo.lock SHA-256 | `714e1bc8ecd38fd2eb92fa9b5e8a047d57e86b02abcb8d3bd5b633e2dc941171` | current tree |
 | Compose/images | config PASS; 3/3 digests | dev config only |
 
 ## Обязательные gates
@@ -43,17 +44,28 @@ provider-вызовов. Credential, env flag и owner statement сами по �
 
 ### 3. Rust / Knowledge Foundry
 
-Локально уже есть exact toolchain/lock, locked build/test/lint/RustSec, bounded CAS/parser/replay,
-build-pinned signed ingest mandate и одна tenant-scoped atomic PostgreSQL operation без raw pool
-escape. Для production всё ещё обязательны:
+В current tree реализованы exact toolchain/lock, bounded CAS/parser/replay и signed authority v3.
+Signed `authority_domain_id` связывает mandate с DB domain; только цепочка
+`ConsumedIngestAuthority → durable CAS → borrowed StoredIngestAuthority registrar proof` допускает
+registration, причём CAS rehash выполняется перед SQL. Grant хранит runtime role OID, runtime caller
+передаёт только `grant_id`, direct blob/created outcome скрыт, а ACL и lock/statement timeouts
+ограничены. Current locked gate прошёл **109/0/1 ignored**, fmt/Clippy и RustSec зелёные; отдельный
+guarded PostgreSQL run прошёл **1/1 за 37.00s**. Это локальный PASS, не production acceptance.
+
+Для production всё ещё обязательны:
 
 - attested release build с закреплённым registry digest и проверяемой VCS/build provenance;
-- external key custody/rotation/revocation, trusted clock/host boundary и shared transactional replay;
-- end-to-end доказательство, что signed authority — единственный источник PostgreSQL project scope;
+- external key и registrar credential custody/rotation/revocation, trusted clock/host boundary и
+  external monotonic replay anchor;
+- повтор current Rust/RustSec и guarded PostgreSQL evidence в clean external CI на immutable
+  release artifact;
+- PostgreSQL TLS/`verify-full`/channel-binding и credential confidentiality enforcement;
+- one-shot `004` existing-volume/partial-failure/backup/forced-crash/restore acceptance;
+- clone quarantine, outstanding-grant revocation и coordinated rotation domain + credentials;
 - signed schema/policy/function attestation и проверка deployment drift;
-- обязательный verified proof-of-content либо tenant/keyed dedup с неразличимым outcome;
-- dedicated disposable-cluster `maworld_rls_test_*` migration/RLS/pool-reuse/concurrency/crash/recovery acceptance;
-- production runtime credentials/TLS/role grants и deployment verification;
+- tenant/keyed dedup либо adversarial timing/lock/error non-interference evidence;
+- descriptor/handle или immutable object-store CAS boundary против hostile pathname replacement;
+- production runtime/registrar role grants и deployment verification;
 - trusted signed provenance для RiskService observations и независимый execution gate.
 
 ### 4. Supply chain
@@ -68,7 +80,7 @@ escape. Для production всё ещё обязательны:
 
 - Stripe settlement/fulfillment lineage в test environment;
 - venue lifecycle, idempotency, kill switch и reconciliation;
-- versioned migration existing PostgreSQL volume + backup/restore;
+- versioned migration existing PostgreSQL volume beyond one-shot `004` + backup/restore/clone recovery;
 - NATS mTLS/auth, MinIO least privilege и network policy.
 
 ## Порядок допуска

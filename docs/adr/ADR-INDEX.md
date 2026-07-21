@@ -33,8 +33,8 @@
 |---|---|---|
 | ADR-R4-01 | Language boundary уточнён: авторитет от владения сервисом/политики/контрактов, НЕ от языка. Rust — для integrity-critical; Postgres — авторитетное состояние; Rust-сервис = контролируемый писатель/валидатор. | v1.3 §2 |
 | ADR-R4-02 | CAS no-overwrite портируем: hard_link или create_new+copy (не зависит от hard links). | v1.3 §4 |
-| ADR-R4-03 | **CURRENT LOCAL STATUS:** каждый Rust store call ставит `SET LOCAL ROLE` и bound transaction-local project scope; dedicated DB acceptance остаётся SKIP | v1.3 §7 / `RUST_SECURITY_HOLD.md` |
-| ADR-R4-04 | **HOLD:** raw pool удалён и scoped atomic API/runtime-role/raw_blob boundary реализованы локально; end-to-end authority wiring и dedicated RLS acceptance остаются | v1.3 §6 / `RUST_SECURITY_HOLD.md` |
+| ADR-R4-03 | **CURRENT DESIGN / HOLD:** authority v3 подписывает DB domain; registration требует Consumed→durable CAS→borrowed Stored proof с rehash; grant фиксирует session role OID | current `RUST_SECURITY_HOLD.md` |
+| ADR-R4-04 | **CURRENT LOCAL PASS / PRODUCTION HOLD:** raw pool удалён; runtime caller передаёт только grant ID, scope/IDs выводятся server-side, direct blob/created outcome скрыт. Rust 109/0/1 ignored и guarded PG 1/1 green; production lifecycle/TLS остаются HOLD | current `RUST_SECURITY_HOLD.md` |
 | ADR-R4-05 | MCP normalizer врезан в workflow: решение шага = stricter(mcp, policy); DENY/HOLD до side effect. | control_spine_v2 |
 
 ## Раунд 5 (после отчёта Control Spine + Competitive Primitives)
