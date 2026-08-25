@@ -83,7 +83,13 @@ def main() -> int:
         ) = cursor.fetchone()
         if actual_database != expected_database:
             raise RuntimeError("connected database does not match the guarded DSN")
-        if server_address is None or not ipaddress.ip_address(server_address).is_loopback:
+        if server_address is None:
+            raise RuntimeError("actual PostgreSQL server address is not loopback")
+        try:
+            server_ip = ipaddress.ip_interface(server_address).ip
+        except ValueError as exc:
+            raise RuntimeError("actual PostgreSQL server address is not loopback") from exc
+        if not server_ip.is_loopback:
             raise RuntimeError("actual PostgreSQL server address is not loopback")
         if in_recovery:
             raise RuntimeError("destructive acceptance refuses a recovery/standby server")
