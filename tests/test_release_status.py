@@ -110,7 +110,8 @@ ok(
     and all(override in rls_script for override in ("hostaddr", "service", "options"))
     and "inet_server_addr()" in rls_script
     and "actual_database != expected_database" in rls_script
-    and "ipaddress.ip_address(server_address).is_loopback" in rls_script
+    and "server_ip = ipaddress.ip_interface(server_address).ip" in rls_script
+    and "if not server_ip.is_loopback" in rls_script
     and "pg_is_in_recovery()" in rls_script
     and "other_user_databases" in rls_script
     and all(name in rls_script for name in ("template0", "template1", "postgres"))
