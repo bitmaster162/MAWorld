@@ -274,7 +274,7 @@ if GIT:
         alternate_claim, evidence(roots=(git_root,))
     ).accepted)
 
-    inherited_repo, _inherited_oid = make_repo(git_root, "inherited")
+    inherited_repo, _inherited_oid = make_repo(git_root, "inherited", content=b"inherited")
     previous_git_dir = os.environ.get("GIT_DIR")
     os.environ["GIT_DIR"] = os.path.join(outside_repo, ".git")
     try:
@@ -454,27 +454,7 @@ pilot_result = E.pilot_gate(
     pilot_ids, attestations, tenant_id="tenant-a", merchant_account="acct-main",
     currency="USD", acceptor=acceptor,
 )
-ok(
-    "pilot gate scales on 5 unique pilots and 3 accepted payments",
-    pilot_result["decision"] == "SCALE",
-    "pilot_result=%r attestations=%r" % (
-        pilot_result,
-        [
-            {
-                "customer_id": claim.subject.get("customer_id"),
-                "payment_id": claim.subject.get("payment_id"),
-                "truth": result.truth.value,
-                "checks": [
-                    (check.name, check.passed, check.detail)
-                    for check in result.checks
-                ],
-                "accepted": acceptor.accept(claim, result).accepted,
-                "accept_reason": acceptor.accept(claim, result).reason,
-            }
-            for claim, result in attestations
-        ],
-    ),
-)
+ok("pilot gate scales on 5 unique pilots and 3 accepted payments", pilot_result["decision"] == "SCALE")
 duplicate_result = E.pilot_gate(
     pilot_ids, [attestations[0]] * 3, tenant_id="tenant-a",
     merchant_account="acct-main", currency="USD", acceptor=acceptor,
@@ -507,23 +487,6 @@ ok("payment proof cannot serve as approval proof", not accepted(wrong_role).acce
 continuity = Claim(K.CONTINUITY_PRESERVED, {"model_swap_test_passed": True}, "agent")
 ok("claim-supplied continuity boolean is not evidence", not accepted(continuity).accepted)
 
-if pilot_result["decision"] != "SCALE":
-    compact = []
-    for claim, result in attestations:
-        decision = acceptor.accept(claim, result)
-        payment_check = next((check for check in result.checks if check.name == "payment_proven"), None)
-        compact.append("%s:%s:%s:%s:%s" % (
-            claim.subject.get("customer_id"),
-            claim.subject.get("payment_id"),
-            result.truth.value,
-            "A" if decision.accepted else "R",
-            "P1" if payment_check and payment_check.passed else "P0",
-        ))
-    print("PILOT_DIAG decision=%s paying=%s items=%s" % (
-        pilot_result.get("decision"),
-        pilot_result.get("paying"),
-        ",".join(compact),
-    ))
 import sys
 print(f"\nTALLY evidence adversarial: PASS={P} FAIL={F}")
 sys.exit(1 if F else 0)
