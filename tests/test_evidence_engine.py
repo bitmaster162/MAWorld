@@ -507,6 +507,23 @@ ok("payment proof cannot serve as approval proof", not accepted(wrong_role).acce
 continuity = Claim(K.CONTINUITY_PRESERVED, {"model_swap_test_passed": True}, "agent")
 ok("claim-supplied continuity boolean is not evidence", not accepted(continuity).accepted)
 
+if pilot_result["decision"] != "SCALE":
+    compact = []
+    for claim, result in attestations:
+        decision = acceptor.accept(claim, result)
+        payment_check = next((check for check in result.checks if check.name == "payment_proven"), None)
+        compact.append("%s:%s:%s:%s:%s" % (
+            claim.subject.get("customer_id"),
+            claim.subject.get("payment_id"),
+            result.truth.value,
+            "A" if decision.accepted else "R",
+            "P1" if payment_check and payment_check.passed else "P0",
+        ))
+    print("PILOT_DIAG decision=%s paying=%s items=%s" % (
+        pilot_result.get("decision"),
+        pilot_result.get("paying"),
+        ",".join(compact),
+    ))
 import sys
 print(f"\nTALLY evidence adversarial: PASS={P} FAIL={F}")
 sys.exit(1 if F else 0)
