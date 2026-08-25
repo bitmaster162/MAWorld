@@ -454,7 +454,27 @@ pilot_result = E.pilot_gate(
     pilot_ids, attestations, tenant_id="tenant-a", merchant_account="acct-main",
     currency="USD", acceptor=acceptor,
 )
-ok("pilot gate scales on 5 unique pilots and 3 accepted payments", pilot_result["decision"] == "SCALE")
+ok(
+    "pilot gate scales on 5 unique pilots and 3 accepted payments",
+    pilot_result["decision"] == "SCALE",
+    "pilot_result=%r attestations=%r" % (
+        pilot_result,
+        [
+            {
+                "customer_id": claim.subject.get("customer_id"),
+                "payment_id": claim.subject.get("payment_id"),
+                "truth": result.truth.value,
+                "checks": [
+                    (check.name, check.passed, check.detail)
+                    for check in result.checks
+                ],
+                "accepted": acceptor.accept(claim, result).accepted,
+                "accept_reason": acceptor.accept(claim, result).reason,
+            }
+            for claim, result in attestations
+        ],
+    ),
+)
 duplicate_result = E.pilot_gate(
     pilot_ids, [attestations[0]] * 3, tenant_id="tenant-a",
     merchant_account="acct-main", currency="USD", acceptor=acceptor,
