@@ -7,6 +7,8 @@ remain SKIP until verified by a separate fixed-key signed-evidence boundary.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import inspect
 import json
 import os
@@ -305,6 +307,146 @@ check("OCI config exposes source read-only", "ro" in mounts["/work/task.py"]["op
 check("OCI child receives only the explicit environment", environment == ["PATH=/usr/bin:/bin", "HOME=/work", "PYTHONDONTWRITEBYTECODE=1"])
 check("OCI config has a memory limit", spec["linux"]["resources"]["memory"]["limit"] == T.MAX_MEMORY_BYTES)
 check("OCI config has a CPU quota", spec["linux"]["resources"]["cpu"] == {"quota": 100000, "period": 100000})
+
+# Offline deployment-attestation verification is a trust-boundary contract,
+# not proof that this host is isolated.  Test keys exist only in this test.
+ATTEST_NOW = 1_700_000_000
+ATTEST_KEY = b"tier2-test-verifier-key"
+EXPECTED_ATTESTATION_COMPOSITION = {
+    "backend_sha256": "a" * 64,
+    "backend_file_identity": {"device": 7, "inode": 11, "size": 13, "mtime_ns": 17},
+    "rootfs_image_digest": "sha256:" + ("b" * 64),
+    "rootfs_mount_identity": {"device": 19, "inode": 23, "mount_id": 29},
+    "oci_policy_digest": "sha256:" + ("c" * 64),
+    "host_identity": "host-fixture-1",
+}
+
+
+def deployment_test_signature(payload: bytes) -> str:
+    return hmac.new(ATTEST_KEY, payload, hashlib.sha256).hexdigest()
+
+
+def signed_deployment_envelope(
+    claims: dict,
+    *,
+    issuer_id: str = "ci-attestor",
+    attestation_id: str = "attestation-fixture-1",
+) -> dict:
+    payload = T._deployment_attestation_payload(
+        issuer_id, attestation_id, claims
+    )
+    return {
+        "issuer_id": issuer_id,
+        "attestation_id": attestation_id,
+        "claims": claims,
+        "sig": deployment_test_signature(payload),
+    }
+
+
+deployment_verifier = T.DeploymentAttestationVerifier(
+    {
+        "ci-attestor": lambda payload, signature: hmac.compare_digest(
+            deployment_test_signature(payload), signature
+        )
+    },
+    EXPECTED_ATTESTATION_COMPOSITION,
+    clock=lambda: ATTEST_NOW,
+    max_ttl_s=60,
+    future_skew_s=2,
+)
+valid_attestation_claims = {
+    **EXPECTED_ATTESTATION_COMPOSITION,
+    "issued_at": ATTEST_NOW - 1,
+    "expires_at": ATTEST_NOW + 30,
+    "nonce": "nonce-fixture-1",
+}
+valid_attestation = signed_deployment_envelope(valid_attestation_claims)
+verified_attestation = deployment_verifier.verify(valid_attestation)
+check(
+    "fixed deployment-attestation verifier accepts exact signed composition",
+    verified_attestation is not None
+    and verified_attestation.issuer_id == "ci-attestor"
+    and verified_attestation.claims["host_identity"] == "host-fixture-1",
+)
+check(
+    "unknown deployment-attestation issuer is rejected",
+    deployment_verifier.verify(
+        signed_deployment_envelope(
+            valid_attestation_claims, issuer_id="unknown-attestor"
+        )
+    )
+    is None,
+)
+tampered_signature = dict(valid_attestation)
+tampered_signature["sig"] = "0" * 64
+check(
+    "tampered deployment-attestation signature is rejected",
+    deployment_verifier.verify(tampered_signature) is None,
+)
+missing_claims = dict(valid_attestation_claims)
+missing_claims.pop("nonce")
+check(
+    "deployment attestation with a missing claim is rejected",
+    deployment_verifier.verify(signed_deployment_envelope(missing_claims)) is None,
+)
+extra_claims = dict(valid_attestation_claims)
+extra_claims["self_reported_isolated"] = True
+check(
+    "deployment attestation with an extra claim is rejected",
+    deployment_verifier.verify(signed_deployment_envelope(extra_claims)) is None,
+)
+mismatched_composition = dict(valid_attestation_claims)
+mismatched_composition["host_identity"] = "other-host"
+check(
+    "valid signature cannot move deployment evidence to another composition",
+    deployment_verifier.verify(
+        signed_deployment_envelope(mismatched_composition)
+    )
+    is None,
+)
+malformed_backend = dict(valid_attestation_claims)
+malformed_backend["backend_sha256"] = "not-a-digest"
+check(
+    "malformed deployment backend digest is rejected",
+    deployment_verifier.verify(signed_deployment_envelope(malformed_backend)) is None,
+)
+expired_claims = dict(valid_attestation_claims)
+expired_claims["issued_at"] = ATTEST_NOW - 40
+expired_claims["expires_at"] = ATTEST_NOW - 1
+check(
+    "expired deployment attestation is rejected",
+    deployment_verifier.verify(signed_deployment_envelope(expired_claims)) is None,
+)
+future_claims = dict(valid_attestation_claims)
+future_claims["issued_at"] = ATTEST_NOW + 3
+future_claims["expires_at"] = ATTEST_NOW + 30
+check(
+    "future-issued deployment attestation is rejected",
+    deployment_verifier.verify(signed_deployment_envelope(future_claims)) is None,
+)
+long_lived_claims = dict(valid_attestation_claims)
+long_lived_claims["issued_at"] = ATTEST_NOW - 1
+long_lived_claims["expires_at"] = ATTEST_NOW + 60
+check(
+    "deployment attestation exceeding pinned TTL is rejected",
+    deployment_verifier.verify(
+        signed_deployment_envelope(long_lived_claims)
+    )
+    is None,
+)
+claims_are_immutable = False
+if verified_attestation is not None:
+    try:
+        verified_attestation.claims["host_identity"] = "mutated"
+    except TypeError:
+        claims_are_immutable = (
+            verified_attestation.claims["host_identity"] == "host-fixture-1"
+        )
+check("verified deployment claims are exposed read-only", claims_are_immutable)
+check(
+    "verified deployment receipt cannot manufacture local isolation flags",
+    T._accepted_result_flags(True, verified_attestation) == (False, False),
+)
 
 # Functional runtime smoke checks require explicit pinned composition.  Never
 # search PATH here.  Passing them does not establish isolation or deny-egress.

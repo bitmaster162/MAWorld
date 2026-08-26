@@ -21,9 +21,11 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import uuid
 from dataclasses import dataclass
-from typing import BinaryIO, Mapping, Sequence
+from types import MappingProxyType
+from typing import BinaryIO, Callable, Mapping, Sequence
 
 
 DEFAULT_OUTPUT_BYTES = 64 * 1024
@@ -51,6 +53,204 @@ REQUIRED_DEPLOYMENT_ATTESTATION_CLAIMS = (
     "expires_at",
     "nonce",
 )
+
+DEPLOYMENT_ATTESTATION_DOMAIN = b"MAWORLD/TIER2-DEPLOYMENT-ATTESTATION/V1\x00"
+DEPLOYMENT_COMPOSITION_CLAIMS = REQUIRED_DEPLOYMENT_ATTESTATION_CLAIMS[:6]
+DEFAULT_DEPLOYMENT_ATTESTATION_MAX_TTL_S = 300
+DEFAULT_DEPLOYMENT_ATTESTATION_FUTURE_SKEW_S = 5
+MAX_DEPLOYMENT_ATTESTATION_STRING_BYTES = 4096
+
+
+class DeploymentAttestationRejected(RuntimeError):
+    """The external deployment-attestation envelope is not acceptable."""
+
+
+@dataclass(frozen=True)
+class VerifiedDeploymentAttestation:
+    """Immutable receipt for a signature-verified, composition-bound envelope."""
+
+    issuer_id: str
+    attestation_id: str
+    _claims_json: bytes
+
+    @property
+    def claims(self) -> Mapping[str, object]:
+        decoded = json.loads(self._claims_json.decode("utf-8"))
+        return MappingProxyType(decoded)
+
+
+def _canonical_attestation(value: object) -> bytes:
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+def _bounded_attestation_string(name: str, value: object) -> str:
+    if not isinstance(value, str) or not value:
+        raise DeploymentAttestationRejected(f"{name} must be a non-empty string")
+    if len(value.encode("utf-8")) > MAX_DEPLOYMENT_ATTESTATION_STRING_BYTES:
+        raise DeploymentAttestationRejected(f"{name} exceeds the bounded string limit")
+    return value
+
+
+def _bounded_attestation_value(name: str, value: object) -> object:
+    try:
+        encoded = _canonical_attestation(value)
+    except (TypeError, ValueError, OverflowError) as error:
+        raise DeploymentAttestationRejected(
+            f"{name} is not canonical JSON"
+        ) from error
+    if len(encoded) > MAX_DEPLOYMENT_ATTESTATION_STRING_BYTES:
+        raise DeploymentAttestationRejected(f"{name} exceeds the bounded claim limit")
+    if isinstance(value, str):
+        _bounded_attestation_string(name, value)
+    return value
+
+
+def _deployment_attestation_payload(
+    issuer_id: str,
+    attestation_id: str,
+    claims: Mapping[str, object],
+) -> bytes:
+    return DEPLOYMENT_ATTESTATION_DOMAIN + _canonical_attestation({
+        "issuer_id": issuer_id,
+        "attestation_id": attestation_id,
+        "claims": dict(claims),
+    })
+
+
+class DeploymentAttestationVerifier:
+    """Verify externally issued Tier-2 evidence against constructor-pinned trust."""
+
+    _ENVELOPE_FIELDS = frozenset({"issuer_id", "attestation_id", "claims", "sig"})
+
+    def __init__(
+        self,
+        verifiers: Mapping[str, Callable[[bytes, str], bool]],
+        expected_composition: Mapping[str, object],
+        *,
+        clock: Callable[[], float] = time.time,
+        max_ttl_s: int = DEFAULT_DEPLOYMENT_ATTESTATION_MAX_TTL_S,
+        future_skew_s: int = DEFAULT_DEPLOYMENT_ATTESTATION_FUTURE_SKEW_S,
+    ):
+        if not isinstance(verifiers, Mapping) or not verifiers:
+            raise ValueError("verifiers must be a non-empty fixed issuer mapping")
+        fixed_verifiers: dict[str, Callable[[bytes, str], bool]] = {}
+        for issuer_id, verify in verifiers.items():
+            issuer = _bounded_attestation_string("issuer_id", issuer_id)
+            if not callable(verify):
+                raise TypeError("each deployment-attestation verifier must be callable")
+            fixed_verifiers[issuer] = verify
+
+        if not isinstance(expected_composition, Mapping):
+            raise TypeError("expected_composition must be a mapping")
+        if set(expected_composition) != set(DEPLOYMENT_COMPOSITION_CLAIMS):
+            raise ValueError("expected_composition must contain exactly the six pinned claims")
+        try:
+            expected_copy = json.loads(
+                _canonical_attestation(dict(expected_composition)).decode("utf-8")
+            )
+        except (TypeError, ValueError, OverflowError) as error:
+            raise ValueError("expected_composition must be canonical JSON") from error
+        expected_copy["backend_sha256"] = _normalize_sha256(
+            expected_copy["backend_sha256"]
+        )
+        for claim_name in DEPLOYMENT_COMPOSITION_CLAIMS:
+            _bounded_attestation_value(claim_name, expected_copy[claim_name])
+
+        if not callable(clock):
+            raise TypeError("clock must be callable")
+        if (
+            isinstance(max_ttl_s, bool)
+            or not isinstance(max_ttl_s, int)
+            or max_ttl_s <= 0
+            or max_ttl_s > DEFAULT_DEPLOYMENT_ATTESTATION_MAX_TTL_S
+        ):
+            raise ValueError("max_ttl_s must be a bounded positive integer")
+        if (
+            isinstance(future_skew_s, bool)
+            or not isinstance(future_skew_s, int)
+            or future_skew_s < 0
+            or future_skew_s > DEFAULT_DEPLOYMENT_ATTESTATION_FUTURE_SKEW_S
+        ):
+            raise ValueError("future_skew_s must be a bounded non-negative integer")
+
+        self.__verifiers = MappingProxyType(fixed_verifiers)
+        self.__expected_composition = MappingProxyType(expected_copy)
+        self.__clock = clock
+        self.__max_ttl_s = max_ttl_s
+        self.__future_skew_s = future_skew_s
+
+    def verify(self, raw: object) -> VerifiedDeploymentAttestation | None:
+        if not isinstance(raw, dict) or set(raw) != self._ENVELOPE_FIELDS:
+            return None
+        claims = raw.get("claims")
+        if (
+            not isinstance(claims, dict)
+            or set(claims) != set(REQUIRED_DEPLOYMENT_ATTESTATION_CLAIMS)
+        ):
+            return None
+        try:
+            issuer_id = _bounded_attestation_string("issuer_id", raw.get("issuer_id"))
+            attestation_id = _bounded_attestation_string(
+                "attestation_id", raw.get("attestation_id")
+            )
+            signature = _bounded_attestation_string("sig", raw.get("sig"))
+            _bounded_attestation_string("nonce", claims.get("nonce"))
+            normalized_backend = _normalize_sha256(claims.get("backend_sha256"))
+            if normalized_backend != claims.get("backend_sha256"):
+                return None
+            for claim_name in DEPLOYMENT_COMPOSITION_CLAIMS:
+                _bounded_attestation_value(claim_name, claims.get(claim_name))
+        except (DeploymentAttestationRejected, TypeError, ValueError):
+            return None
+
+        issued_at = claims.get("issued_at")
+        expires_at = claims.get("expires_at")
+        if (
+            isinstance(issued_at, bool)
+            or not isinstance(issued_at, int)
+            or isinstance(expires_at, bool)
+            or not isinstance(expires_at, int)
+        ):
+            return None
+        lifetime = expires_at - issued_at
+        if lifetime <= 0 or lifetime > self.__max_ttl_s:
+            return None
+        try:
+            now = int(self.__clock())
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if issued_at > now + self.__future_skew_s or expires_at <= now:
+            return None
+
+        for claim_name in DEPLOYMENT_COMPOSITION_CLAIMS:
+            if claims.get(claim_name) != self.__expected_composition[claim_name]:
+                return None
+
+        verifier = self.__verifiers.get(issuer_id)
+        if verifier is None:
+            return None
+        try:
+            payload = _deployment_attestation_payload(
+                issuer_id, attestation_id, claims
+            )
+            if not bool(verifier(payload, signature)):
+                return None
+            frozen_claims = _canonical_attestation(dict(claims))
+        except (TypeError, ValueError, OverflowError):
+            return None
+        except Exception:
+            return None
+        return VerifiedDeploymentAttestation(
+            issuer_id=issuer_id,
+            attestation_id=attestation_id,
+            _claims_json=frozen_claims,
+        )
 
 _RUN_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_RUNS)
 
